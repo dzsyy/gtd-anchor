@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql -u root -p12345678 -e \"SELECT 1\")",
+      "Bash(curl -s http://localhost:8081/api/tasks)",
+      "Bash(mysql -u root -p12345678 -e \"CREATE DATABASE IF NOT EXISTS gtd CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")",
+      "Bash(mysql -u root -p12345678 gtd -e \":*)",
+      "Bash(mv Inbox.vue gtd/)",
+      "Bash(mv ProjectList.vue gtd/)",
+      "Bash(mv WaitingList.vue gtd/)",
+      "Bash(mv ContextList.vue gtd/)",
+      "Bash(mv SomedayList.vue gtd/)",
+      "Bash(curl -s http://localhost:8081/api/inspiration/list)",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "Skill(agent-browser)",
+      "Skill(agent-browser:*)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Bash(agent-browser click:*)",
+      "Bash(agent-browser wait:*)",
+      "Bash(agent-browser snapshot:*)",
+      "Bash(agent-browser screenshot:*)",
+      "Bash(agent-browser open:*)",
+      "Bash(grep -l \"from ''../stores/taskStore''\" /Users/xurui/Documents/schedule/gtd/frontend/src/views/gtd/*.vue)",
+      "Bash(for f:*)",
+      "Bash(do sed:*)",
+      "Bash(done)",
+      "Bash(curl -s http://localhost:5175 -o /dev/null -w \"%{http_code}\")",
+      "Bash(mysqldump -u root -p12345678 gtd)",
+      "Bash(ls -la /Users/xurui/Documents/schedule/gtd/backend/target/*.jar)",
+      "Bash(git init:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
