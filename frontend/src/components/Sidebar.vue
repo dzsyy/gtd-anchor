@@ -2,7 +2,8 @@
   <el-menu
     :default-active="currentPath"
     class="sidebar-menu"
-    router
+    :router="false"
+    @select="handleSelect"
   >
     <div class="logo">
       <h2>锚点</h2>
@@ -81,11 +82,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { EditPen, MessageBox, Collection, PieChart, ChatDotRound, FolderOpened, Sunny, Box, Folder, Clock, Check, Star, Grid, Timer } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const currentPath = computed(() => route.path)
+
+const emit = defineEmits(['select'])
+
+const handleSelect = (index: string) => {
+  emit('select', index)
+  router.push(index)
+}
 </script>
 
 <style scoped>
