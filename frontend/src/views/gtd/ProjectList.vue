@@ -394,30 +394,34 @@ const handleKeydown = async (e: KeyboardEvent) => {
       return
     }
 
-    // 如果选中根节点，不能添加子节点
+    // 如果选中根节点，添加为根节点的子节点
+    let parentTaskId: number | undefined
     if (selectedNode.value.id.startsWith('root-')) {
-      ElMessage.warning('请选择一个子节点')
+      parentTaskId = selectedProject.value!.id
+    } else {
+      parentTaskId = selectedNode.value.data.taskId
+    }
+
+    if (!parentTaskId) {
+      ElMessage.warning('无法添加子节点')
       return
     }
 
     // 创建新的子节点
-    const parentTaskId = selectedNode.value.data.taskId
-    if (parentTaskId) {
-      const newTask = await taskStore.createTask({
-        title: '新步骤',
-        status: TaskStatus.PROJECT,
-        parentId: parentTaskId
-      })
+    const newTask = await taskStore.createTask({
+      title: '新步骤',
+      status: TaskStatus.PROJECT,
+      parentId: parentTaskId
+    })
 
-      await refreshMindMap()
+    await refreshMindMap()
 
-      // 选中新节点并编辑
-      const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
-      if (newNode) {
-        selectedNode.value = newNode
-        await nextTick()
-        await startEditing(newNode, 'new')
-      }
+    // 选中新节点并编辑
+    const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
+    if (newNode) {
+      selectedNode.value = newNode
+      await nextTick()
+      await startEditing(newNode, 'new')
     }
     return
   }
@@ -432,7 +436,7 @@ const handleKeydown = async (e: KeyboardEvent) => {
     }
 
     // 如果选中根节点，添加到根节点下
-    let parentId = selectedProject.value.id
+    let parentId = selectedProject.value!.id
 
     if (!selectedNode.value.id.startsWith('root-')) {
       // 获取选中节点的父节点ID
