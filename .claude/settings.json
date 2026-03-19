@@ -45,7 +45,9 @@
       "Read(//Users/xurui/.claude/skills/**)",
       "Bash(npx skills:*)",
       "Bash(npm search:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npm info:*)",
+      "WebFetch(domain:sangtian152.github.io)"
     ]
   }
 }

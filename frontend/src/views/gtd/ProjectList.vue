@@ -1,7 +1,7 @@
 <template>
   <div class="project-page">
     <h2>项目清单</h2>
-    <p class="subtitle">选择项目 → 树状图展示，支持拖拽、编辑</p>
+    <p class="subtitle">选择项目 → 树状图展示，支持拖拽</p>
 
     <div class="project-container">
       <!-- 左侧项目列表 -->
@@ -45,18 +45,19 @@
       <!-- 右侧树状图 -->
       <div class="tree-container">
         <div v-if="selectedProject" class="tree-wrapper">
-          <tree-org
+          <Vue3TreeOrg
+            v-if="treeData.id"
             :data="treeData"
             :config="treeConfig"
             @node-click="onNodeClick"
             @node-drop="onNodeDrop"
           >
-            <template #node="{ data }">
-              <div class="custom-node" @dblclick="startEdit(data)">
-                <span class="node-label">{{ data.label }}</span>
+            <template #default="{ data }">
+              <div class="custom-node" @dblclick.stop="startEdit(data)">
+                {{ data.label }}
               </div>
             </template>
-          </tree-org>
+          </Vue3TreeOrg>
         </div>
         <el-empty v-else description="选择一个项目开始分解" :image-size="80" />
       </div>
@@ -74,11 +75,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import Vue3TreeOrg from 'vue3-tree-org'
+import 'vue3-tree-org/lib/vue3-tree-org.css'
 
 const taskStore = useTaskStore()
 const projects = computed(() => taskStore.tasksByStatus[TaskStatus.PROJECT] || [])
@@ -109,19 +112,19 @@ interface TreeNode {
   children?: TreeNode[]
 }
 
-const treeData = ref<TreeNode>({ id: 'root', label: '', children: [] })
+const treeData = ref<TreeNode>({ id: '', label: '' })
 
 // 树状图配置
-const treeConfig = {
+const treeConfig = reactive({
   nodeWidth: 200,
-  nodeHeight: 80,
+  nodeHeight: 40,
   levelWidth: 80,
   renderMode: 'tree',
   draggable: true,
   collapsible: true,
   expandLevel: 1,
   showNodeId: false
-}
+})
 
 const selectProject = async (project: Task) => {
   selectedProject.value = project
@@ -140,7 +143,7 @@ const buildTree = (project: Task) => {
       .map(task => ({
         id: `task-${task.id}`,
         label: task.title,
-        taskId: task.id!,
+        taskId: task.id,
         children: buildChildren(task.id!)
       }))
   }
@@ -160,22 +163,18 @@ const onNodeClick = (data: TreeNode) => {
 
 // 节点拖拽 - 改变层级关系
 const onNodeDrop = async (data: TreeNode, dropNode: TreeNode, dropPosition: number) => {
-  // dropPosition: 0-作为子节点, 1-作为前置兄弟, 2-作为后置兄弟
   if (!data.taskId || !selectedProject.value) return
 
   let newParentId: number | undefined
 
   if (dropPosition === 0) {
-    // 作为子节点
     newParentId = dropNode.taskId || selectedProject.value.id
   } else {
-    // 作为兄弟节点，找父节点
     const dropTask = allSubTasks.value.find(t => t.id === dropNode.taskId)
     newParentId = dropTask?.parentId || selectedProject.value.id
   }
 
   if (newParentId) {
-    // 更新任务的父节点
     const task = allSubTasks.value.find(t => t.id === data.taskId)
     if (task) {
       await taskStore.updateTask(data.taskId, { ...task, parentId: newParentId })
@@ -316,6 +315,7 @@ onMounted(() => {
 .tree-wrapper {
   width: 100%;
   height: 100%;
+  overflow: auto;
 }
 
 /* 自定义节点样式 */
@@ -326,15 +326,12 @@ onMounted(() => {
   border-radius: 20px;
   cursor: pointer;
   user-select: none;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .custom-node:hover {
   transform: scale(1.05);
-}
-
-.node-label {
-  font-size: 14px;
-  white-space: nowrap;
 }
 
 /* 树状图容器样式 */
