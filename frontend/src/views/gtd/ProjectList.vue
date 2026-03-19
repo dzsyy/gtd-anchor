@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
@@ -338,8 +338,62 @@ const handleCommand = async (command: string, project: Task) => {
   }
 }
 
+// 键盘事件处理
+const handleKeydown = async (e: KeyboardEvent) => {
+  // 如果有对话框打开，不处理
+  if (dialogVisible.value) return
+
+  // 如果没有选中项目或节点，不处理
+  if (!selectedProject.value || !selectedNode.value) return
+
+  // Tab - 添加子节点
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // 显示添加对话框，模式为添加子节点
+    dialogMode.value = 'add'
+    nodeTitle.value = ''
+    dialogVisible.value = true
+
+    nextTick(() => {
+      inputRef.value?.focus()
+    })
+    return
+  }
+
+  // Enter - 添加同级节点
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    e.stopPropagation()
+
+    dialogMode.value = 'add'
+    nodeTitle.value = ''
+    dialogVisible.value = true
+
+    nextTick(() => {
+      inputRef.value?.focus()
+    })
+    return
+  }
+
+  // Delete - 删除节点
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    // 如果焦点在输入框，不处理
+    if ((e.target as HTMLElement).tagName === 'INPUT') return
+
+    e.preventDefault()
+    await deleteNode()
+  }
+}
+
 onMounted(() => {
   taskStore.fetchAllTasks()
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
