@@ -1,7 +1,7 @@
 <template>
   <div class="project-page">
     <h2>项目清单</h2>
-    <p class="subtitle">双击画布添加子步骤，点击节点编辑/删除</p>
+    <p class="subtitle">选择项目 → 点击节点 → Tab添加子步骤 / Enter添加同级步骤 / 双击编辑</p>
 
     <!-- 项目列表 + 思维导图 -->
     <div class="project-container">
@@ -46,8 +46,14 @@
       <!-- 右侧思维导图 -->
       <div class="mindmap-container">
         <div v-if="selectedProject" class="mindmap-wrapper">
+          <!-- 操作提示 -->
+          <div class="hint-bar">
+            <span v-if="selectedNode">已选中: {{ selectedNode.data?.label || '根节点' }}</span>
+            <span v-else>点击选择一个节点</span>
+            <span class="hint-keys">Tab: 添加子节点 | Enter: 添加同级 | Delete: 删除</span>
+          </div>
+
           <VueFlow
-            ref="vueFlowRef"
             :nodes="nodes"
             :edges="edges"
             :default-viewport="{ x: 0, y: 300, zoom: 0.8 }"
@@ -55,8 +61,8 @@
             :max-zoom="2"
             fit-view-on-init
             class="mindmap-flow"
-            @pane-click="onPaneClick"
             @node-click="onNodeClick"
+            @pane-click="onPaneClick"
           >
             <Background pattern-color="#aaa" :gap="20" />
             <Controls />
@@ -66,12 +72,21 @@
       </div>
     </div>
 
-    <!-- 添加/编辑子节点对话框 -->
-    <el-dialog v-model="dialogVisible" :title="editingNode ? '编辑子步骤' : '添加子步骤'" width="400px">
-      <el-input v-model="nodeTitle" placeholder="请输入步骤名称" @keydown.enter="confirmAction" />
+    <!-- 添加/编辑对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'edit' ? '编辑步骤' : '添加步骤'" width="400px">
+      <el-input
+        v-model="nodeTitle"
+        placeholder="请输入步骤名称"
+        ref="inputRef"
+        @keydown.enter="confirmAction"
+        @keydown.tab.prevent="handleTab"
+      />
+      <div class="dialog-hint">
+        <span v-if="dialogMode === 'add'">按 Enter 添加同级步骤，按 Tab 添加子步骤</span>
+      </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button v-if="editingNode" type="danger" @click="deleteNode">删除</el-button>
+          <el-button v-if="dialogMode === 'edit'" type="danger" @click="deleteNode">删除</el-button>
           <div class="footer-right">
             <el-button @click="dialogVisible = false">取消</el-button>
             <el-button type="primary" @click="confirmAction">确定</el-button>
@@ -83,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
@@ -114,30 +129,31 @@ const handleAddProject = async () => {
 
 // 选择的项目
 const selectedProject = ref<Task | null>(null)
+const selectedNode = ref<Node | null>(null)
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
-
-// 所有子任务缓存
 const allSubTasks = ref<Task[]>([])
+
+// 对话框
+const dialogVisible = ref(false)
+const dialogMode = ref<'add' | 'edit'>('add')
+const nodeTitle = ref('')
+const inputRef = ref()
 
 const selectProject = async (project: Task) => {
   selectedProject.value = project
-
-  // 获取所有项目子任务
+  selectedNode.value = null
   allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
-
-  // 筛选出当前项目的子任务
   const subTasks = allSubTasks.value.filter(t => t.parentId === project.id)
-
   buildMindMap(project, subTasks)
 }
 
-// 构建思维导图 - 左对齐布局
+// 构建思维导图 - 左对齐
 const buildMindMap = (project: Task, subTasks: Task[]) => {
   const newNodes: Node[] = []
   const newEdges: Edge[] = []
 
-  // 根节点放在右侧
+  // 根节点
   const rootNode: Node = {
     id: `root-${project.id}`,
     position: { x: 600, y: 300 },
@@ -155,7 +171,7 @@ const buildMindMap = (project: Task, subTasks: Task[]) => {
   }
   newNodes.push(rootNode)
 
-  // 子节点放在左侧，垂直排列
+  // 子节点 - 垂直排列
   const levelX = 100
   const startY = 100
   const gapY = 120
@@ -167,7 +183,7 @@ const buildMindMap = (project: Task, subTasks: Task[]) => {
     const node: Node = {
       id: nodeId,
       position: { x: levelX, y },
-      data: { label: task.title, taskId: task.id },
+      data: { label: task.title, taskId: task.id, parentId: task.parentId },
       style: {
         background: '#fff',
         border: '2px solid #008080',
@@ -177,17 +193,14 @@ const buildMindMap = (project: Task, subTasks: Task[]) => {
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
       }
     }
-
     newNodes.push(node)
 
-    // 贝塞尔曲线连接线
     newEdges.push({
       id: `edge-${project.id}-${task.id}`,
       source: `root-${project.id}`,
       target: nodeId,
       type: 'smoothstep',
-      style: { stroke: '#008080', strokeWidth: 2 },
-      animated: false
+      style: { stroke: '#008080', strokeWidth: 2 }
     })
   })
 
@@ -195,47 +208,69 @@ const buildMindMap = (project: Task, subTasks: Task[]) => {
   edges.value = newEdges
 }
 
-// 点击画布 - 添加子步骤
-const onPaneClick = (event: any) => {
-  if (!selectedProject.value) return
-
-  // 获取点击位置
-  const position = {
-    x: event.event.clientX - 250,
-    y: event.event.clientY - 100
-  }
-
-  // 显示添加对话框
-  editingNode.value = null
-  nodeTitle.value = ''
-  nodePosition.value = position
-  dialogVisible.value = true
+// 点击画布 - 取消选择
+const onPaneClick = () => {
+  selectedNode.value = null
 }
 
-// 点击节点 - 编辑
+// 点击节点 - 选中或编辑
 const onNodeClick = (event: any) => {
   const node = event.node
-  if (node.id.startsWith('root-')) return // 不能编辑根节点
+  selectedNode.value = node
 
-  editingNode.value = node
+  // 如果是根节点，不允许编辑
+  if (node.id.startsWith('root-')) {
+    return
+  }
+
+  // 显示编辑对话框
+  dialogMode.value = 'edit'
   nodeTitle.value = node.data.label
-  nodePosition.value = null
   dialogVisible.value = true
+
+  nextTick(() => {
+    inputRef.value?.focus()
+  })
 }
 
-// 对话框状态
-const dialogVisible = ref(false)
-const editingNode = ref<Node | null>(null)
-const nodeTitle = ref('')
-const nodePosition = ref<{ x: number; y: number } | null>(null)
+// Tab - 添加子节点
+const handleTab = async () => {
+  if (!nodeTitle.value.trim()) {
+    ElMessage.warning('请先输入步骤名称')
+    return
+  }
+
+  // 获取当前选中的节点作为父节点
+  const parentNode = selectedNode.value
+  if (!parentNode || parentNode.id.startsWith('root-')) {
+    ElMessage.warning('请先选择一个子节点')
+    return
+  }
+
+  const taskId = parentNode.data.taskId
+
+  // 创建子任务
+  await taskStore.createTask({
+    title: nodeTitle.value.trim(),
+    status: TaskStatus.PROJECT,
+    parentId: taskId
+  })
+
+  nodeTitle.value = ''
+  dialogVisible.value = false
+  ElMessage.success('子步骤已添加')
+
+  // 刷新
+  await refreshMindMap()
+}
 
 // 确认添加/编辑
 const confirmAction = async () => {
   if (!nodeTitle.value.trim() || !selectedProject.value) return
 
-  if (editingNode.value) {
-    // 编辑现有节点
-    const taskId = editingNode.value.data.taskId
+  if (dialogMode.value === 'edit' && selectedNode.value) {
+    // 编辑
+    const taskId = selectedNode.value.data.taskId
     if (taskId) {
       const task = allSubTasks.value.find(t => t.id === taskId)
       if (task) {
@@ -243,7 +278,7 @@ const confirmAction = async () => {
       }
     }
   } else {
-    // 添加新节点
+    // 添加 - 作为根节点的子节点
     await taskStore.createTask({
       title: nodeTitle.value.trim(),
       status: TaskStatus.PROJECT,
@@ -251,35 +286,40 @@ const confirmAction = async () => {
     })
   }
 
+  nodeTitle.value = ''
   dialogVisible.value = false
 
   // 刷新
-  const subTasks = allSubTasks.value.filter(t => t.parentId === selectedProject.value?.id)
-  buildMindMap(selectedProject.value, subTasks)
+  await refreshMindMap()
 }
 
 // 删除节点
 const deleteNode = async () => {
-  if (!editingNode.value) return
+  if (!selectedNode.value) return
 
-  const taskId = editingNode.value.data.taskId
-  if (taskId) {
-    await ElMessageBox.confirm('确定要删除这个子步骤吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+  const taskId = selectedNode.value.data.taskId
+  if (!taskId) return
 
-    await taskStore.deleteTask(taskId)
-    dialogVisible.value = false
+  await ElMessageBox.confirm('确定要删除这个步骤吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
 
-    // 刷新
-    if (!selectedProject.value) return
-    const subTasks = allSubTasks.value.filter(t => t.parentId === selectedProject.value?.id)
-    buildMindMap(selectedProject.value, subTasks)
+  await taskStore.deleteTask(taskId)
+  dialogVisible.value = false
+  selectedNode.value = null
 
-    ElMessage.success('已删除')
-  }
+  await refreshMindMap()
+  ElMessage.success('已删除')
+}
+
+// 刷新思维导图
+const refreshMindMap = async () => {
+  if (!selectedProject.value) return
+  allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
+  const subTasks = allSubTasks.value.filter(t => t.parentId === selectedProject.value?.id)
+  buildMindMap(selectedProject.value, subTasks)
 }
 
 // 处理菜单命令
@@ -385,10 +425,34 @@ onMounted(() => {
 .mindmap-wrapper {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.hint-bar {
+  padding: 10px 16px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+  color: #666;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hint-keys {
+  color: #999;
+  font-size: 12px;
 }
 
 .mindmap-flow {
-  height: 100%;
+  flex: 1;
+}
+
+.dialog-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #999;
 }
 
 .dialog-footer {
@@ -401,7 +465,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .project-container {
     flex-direction: column;
@@ -410,6 +473,11 @@ onMounted(() => {
   .project-sidebar {
     width: 100%;
     max-height: 200px;
+  }
+
+  .hint-bar {
+    flex-direction: column;
+    gap: 4px;
   }
 }
 </style>
