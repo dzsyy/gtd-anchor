@@ -3,7 +3,20 @@
     <h2>收集箱</h2>
     <p class="subtitle">将所有任务暂时存放在这里，稍后进行分类处理</p>
 
-    <el-empty v-if="!tasks.length" description="收集箱是空的" />
+    <!-- 新增任务 -->
+    <div class="add-task">
+      <el-input
+        v-model="newTaskTitle"
+        placeholder="写下需要处理的任务... (回车添加)"
+        @keydown.enter="handleAddTask"
+      >
+        <template #append>
+          <el-button :icon="Plus" @click="handleAddTask" />
+        </template>
+      </el-input>
+    </div>
+
+    <el-empty v-if="!tasks.length" description="收集箱是空的，添加一个任务试试吧" />
 
     <div v-else class="task-list">
       <el-card
@@ -105,11 +118,26 @@
 import { ref, computed, onMounted } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task, type ProcessTaskDTO } from '../../types'
-import { Delete } from '@element-plus/icons-vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const taskStore = useTaskStore()
 const tasks = computed(() => taskStore.tasksByStatus[TaskStatus.INBOX] || [])
+
+// 新增任务
+const newTaskTitle = ref('')
+
+const handleAddTask = async () => {
+  if (!newTaskTitle.value.trim()) return
+
+  await taskStore.createTask({
+    title: newTaskTitle.value.trim(),
+    status: TaskStatus.INBOX
+  })
+
+  newTaskTitle.value = ''
+  ElMessage.success('任务已添加到收集箱')
+}
 
 // 处理对话框
 const dialogVisible = ref(false)

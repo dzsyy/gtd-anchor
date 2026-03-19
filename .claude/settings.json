@@ -32,7 +32,11 @@
       "Bash(gh auth:*)",
       "Bash(gh repo:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh api:*)",
+      "Bash(git config:*)",
+      "Bash(GIT_ASKPASS=/bin/echo git push https://dzsyy@github.com/dzsyy/gtd-anchor.git master)"
     ]
   }
 }
