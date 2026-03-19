@@ -1,7 +1,7 @@
 <template>
   <div class="project-page">
     <h2>项目清单</h2>
-    <p class="subtitle">选择项目 → 点击节点 → Tab添加子步骤 / Enter添加同级步骤 / 双击编辑</p>
+    <p class="subtitle">选中节点 → Tab添加子节点 / Enter添加同级节点 / 直接打字编辑</p>
 
     <!-- 项目列表 + 思维导图 -->
     <div class="project-container">
@@ -48,12 +48,14 @@
         <div v-if="selectedProject" class="mindmap-wrapper">
           <!-- 操作提示 -->
           <div class="hint-bar">
-            <span v-if="selectedNode">已选中: {{ selectedNode.data?.label || '根节点' }}</span>
+            <span v-if="isEditing">正在编辑... 输入完成按 Enter</span>
+            <span v-else-if="selectedNode">已选中: {{ selectedNode.data?.label || '根节点' }}</span>
             <span v-else>点击选择一个节点</span>
-            <span class="hint-keys">Tab: 添加子节点 | Enter: 添加同级 | Delete: 删除</span>
+            <span class="hint-keys">Tab: 子节点 | Enter: 同级 | 打字: 编辑</span>
           </div>
 
           <VueFlow
+            ref="vueFlowRef"
             :nodes="nodes"
             :edges="edges"
             :default-viewport="{ x: 0, y: 300, zoom: 0.8 }"
@@ -72,46 +74,39 @@
       </div>
     </div>
 
-    <!-- 添加/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'edit' ? '编辑步骤' : '添加步骤'" width="400px">
-      <el-input
-        v-model="nodeTitle"
-        placeholder="请输入步骤名称"
-        ref="inputRef"
-        @keydown.enter="confirmAction"
-        @keydown.tab.prevent="handleTab"
+    <!-- 内联编辑输入框 -->
+    <div
+      v-if="isEditing"
+      class="inline-edit"
+      :style="editBoxStyle"
+    >
+      <input
+        ref="editInputRef"
+        v-model="editingText"
+        class="edit-input"
+        @keydown.enter="finishEditing"
+        @keydown.tab.prevent="finishEditingAndAddChild"
+        @keydown.escape="cancelEditing"
+        @blur="finishEditing"
       />
-      <div class="dialog-hint">
-        <span v-if="dialogMode === 'add'">按 Enter 添加同级步骤，按 Tab 添加子步骤</span>
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button v-if="dialogMode === 'edit'" type="danger" @click="deleteNode">删除</el-button>
-          <div class="footer-right">
-            <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="confirmAction">确定</el-button>
-          </div>
-        </div>
-      </template>
-    </el-dialog>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import type { CSSProperties } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import type { Node, Edge } from '@vue-flow/core'
 
 const taskStore = useTaskStore()
 const projects = computed(() => taskStore.tasksByStatus[TaskStatus.PROJECT] || [])
-
-useVueFlow()
 
 // 新建项目
 const newProjectTitle = ref('')
@@ -134,15 +129,17 @@ const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const allSubTasks = ref<Task[]>([])
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogMode = ref<'add' | 'edit'>('add')
-const nodeTitle = ref('')
-const inputRef = ref()
+// 编辑状态
+const isEditing = ref(false)
+const editingNodeId = ref<string | null>(null)
+const editingText = ref('')
+const editInputRef = ref<HTMLInputElement>()
+const editBoxStyle = ref<CSSProperties>({})
 
 const selectProject = async (project: Task) => {
   selectedProject.value = project
   selectedNode.value = null
+  isEditing.value = false
   allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
   const subTasks = allSubTasks.value.filter(t => t.parentId === project.id)
   buildMindMap(project, subTasks)
@@ -211,91 +208,131 @@ const buildMindMap = (project: Task, subTasks: Task[]) => {
 // 点击画布 - 取消选择
 const onPaneClick = () => {
   selectedNode.value = null
+  isEditing.value = false
 }
 
-// 点击节点 - 选中或编辑
+// 点击节点 - 选中
 const onNodeClick = (event: any) => {
   const node = event.node
   selectedNode.value = node
-
-  // 如果是根节点，不允许编辑
-  if (node.id.startsWith('root-')) {
-    return
-  }
-
-  // 显示编辑对话框
-  dialogMode.value = 'edit'
-  nodeTitle.value = node.data.label
-  dialogVisible.value = true
-
-  nextTick(() => {
-    inputRef.value?.focus()
-  })
 }
 
-// Tab - 添加子节点
-const handleTab = async () => {
-  if (!nodeTitle.value.trim()) {
-    ElMessage.warning('请先输入步骤名称')
-    return
+// 开始编辑
+const startEditing = async (node: Node | null, mode: 'new' | 'edit' = 'edit') => {
+  if (!selectedProject.value) return
+
+  // 如果是编辑模式且有选中节点
+  if (mode === 'edit' && node) {
+    editingNodeId.value = node.id
+    editingText.value = node.data.label || ''
+  } else {
+    editingNodeId.value = null
+    editingText.value = ''
   }
 
-  // 获取当前选中的节点作为父节点
-  const parentNode = selectedNode.value
-  if (!parentNode || parentNode.id.startsWith('root-')) {
-    ElMessage.warning('请先选择一个子节点')
-    return
+  isEditing.value = true
+
+  await nextTick()
+
+  // 计算输入框位置（基于节点位置）
+  if (node && node.position) {
+    editBoxStyle.value = {
+      left: `${node.position.x + 50}px`,
+      top: `${node.position.y + 20}px`
+    }
+  } else {
+    // 新节点在选中节点旁边
+    if (selectedNode.value?.position) {
+      editBoxStyle.value = {
+        left: `${selectedNode.value.position.x + 200}px`,
+        top: `${selectedNode.value.position.y + 20}px`
+      }
+    }
   }
 
-  const taskId = parentNode.data.taskId
-
-  // 创建子任务
-  await taskStore.createTask({
-    title: nodeTitle.value.trim(),
-    status: TaskStatus.PROJECT,
-    parentId: taskId
-  })
-
-  nodeTitle.value = ''
-  dialogVisible.value = false
-  ElMessage.success('子步骤已添加')
-
-  // 刷新
-  await refreshMindMap()
+  editInputRef.value?.focus()
 }
 
-// 确认添加/编辑
-const confirmAction = async () => {
-  if (!nodeTitle.value.trim() || !selectedProject.value) return
+// 完成编辑 - 保存
+const finishEditing = async () => {
+  if (!editingText.value.trim()) {
+    isEditing.value = false
+    return
+  }
 
-  if (dialogMode.value === 'edit' && selectedNode.value) {
-    // 编辑
-    const taskId = selectedNode.value.data.taskId
+  if (editingNodeId.value) {
+    // 编辑现有节点
+    const taskId = nodes.value.find(n => n.id === editingNodeId.value)?.data.taskId
     if (taskId) {
       const task = allSubTasks.value.find(t => t.id === taskId)
       if (task) {
-        await taskStore.updateTask(taskId, { ...task, title: nodeTitle.value.trim() })
+        await taskStore.updateTask(taskId, { ...task, title: editingText.value.trim() })
       }
     }
   } else {
-    // 添加 - 作为根节点的子节点
+    // 新建节点 - 作为根节点的子节点
     await taskStore.createTask({
-      title: nodeTitle.value.trim(),
+      title: editingText.value.trim(),
       status: TaskStatus.PROJECT,
-      parentId: selectedProject.value.id
+      parentId: selectedProject.value!.id
     })
   }
 
-  nodeTitle.value = ''
-  dialogVisible.value = false
+  isEditing.value = false
+  editingNodeId.value = null
 
   // 刷新
   await refreshMindMap()
+}
+
+// 完成编辑并添加子节点
+const finishEditingAndAddChild = async () => {
+  // 先保存当前编辑
+  if (editingText.value.trim()) {
+    await finishEditing()
+
+    // 然后添加子节点
+    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
+      const parentTaskId = selectedNode.value.data.taskId
+      if (parentTaskId) {
+        // 创建子任务
+        const newTask = await taskStore.createTask({
+          title: '新步骤',
+          status: TaskStatus.PROJECT,
+          parentId: parentTaskId
+        })
+
+        // 刷新并选中新节点
+        await refreshMindMap()
+
+        // 找到新节点并开始编辑
+        const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
+        if (newNode) {
+          selectedNode.value = newNode
+          await nextTick()
+          await startEditing(newNode, 'new')
+        }
+      }
+    }
+  }
+}
+
+// 取消编辑
+const cancelEditing = () => {
+  isEditing.value = false
+  editingNodeId.value = null
+  editingText.value = ''
 }
 
 // 删除节点
 const deleteNode = async () => {
   if (!selectedNode.value) return
+
+  // 不能删除根节点
+  if (selectedNode.value.id.startsWith('root-')) {
+    ElMessage.warning('不能删除根节点')
+    return
+  }
 
   const taskId = selectedNode.value.data.taskId
   if (!taskId) return
@@ -307,7 +344,6 @@ const deleteNode = async () => {
   })
 
   await taskStore.deleteTask(taskId)
-  dialogVisible.value = false
   selectedNode.value = null
 
   await refreshMindMap()
@@ -340,60 +376,119 @@ const handleCommand = async (command: string, project: Task) => {
 
 // 键盘事件处理
 const handleKeydown = async (e: KeyboardEvent) => {
-  // 如果有对话框打开，不处理
-  if (dialogVisible.value) return
+  // 如果正在编辑，不处理
+  if (isEditing.value) return
 
-  // 如果没有选中项目或节点，不处理
-  if (!selectedProject.value || !selectedNode.value) return
+  // 如果没有选中项目，不处理
+  if (!selectedProject.value) return
+
+  // 如果焦点在输入框，不处理
+  if ((e.target as HTMLElement).tagName === 'INPUT') return
 
   // Tab - 添加子节点
   if (e.key === 'Tab') {
     e.preventDefault()
-    e.stopPropagation()
 
-    // 显示添加对话框，模式为添加子节点
-    dialogMode.value = 'add'
-    nodeTitle.value = ''
-    dialogVisible.value = true
+    if (!selectedNode.value) {
+      ElMessage.warning('请先选择一个节点')
+      return
+    }
 
-    nextTick(() => {
-      inputRef.value?.focus()
-    })
+    // 如果选中根节点，不能添加子节点
+    if (selectedNode.value.id.startsWith('root-')) {
+      ElMessage.warning('请选择一个子节点')
+      return
+    }
+
+    // 创建新的子节点
+    const parentTaskId = selectedNode.value.data.taskId
+    if (parentTaskId) {
+      const newTask = await taskStore.createTask({
+        title: '新步骤',
+        status: TaskStatus.PROJECT,
+        parentId: parentTaskId
+      })
+
+      await refreshMindMap()
+
+      // 选中新节点并编辑
+      const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
+      if (newNode) {
+        selectedNode.value = newNode
+        await nextTick()
+        await startEditing(newNode, 'new')
+      }
+    }
     return
   }
 
   // Enter - 添加同级节点
   if (e.key === 'Enter') {
     e.preventDefault()
-    e.stopPropagation()
 
-    dialogMode.value = 'add'
-    nodeTitle.value = ''
-    dialogVisible.value = true
+    if (!selectedNode.value) {
+      ElMessage.warning('请先选择一个节点')
+      return
+    }
 
-    nextTick(() => {
-      inputRef.value?.focus()
+    // 如果选中根节点，添加到根节点下
+    let parentId = selectedProject.value.id
+
+    if (!selectedNode.value.id.startsWith('root-')) {
+      // 获取选中节点的父节点ID
+      const currentTaskId = selectedNode.value.data.taskId
+      const currentTask = allSubTasks.value.find(t => t.id === currentTaskId)
+      if (currentTask?.parentId) {
+        parentId = currentTask.parentId
+      }
+    }
+
+    // 创建同级节点
+    const newTask = await taskStore.createTask({
+      title: '新步骤',
+      status: TaskStatus.PROJECT,
+      parentId: parentId
     })
+
+    await refreshMindMap()
+
+    // 选中新节点并编辑
+    const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
+    if (newNode) {
+      selectedNode.value = newNode
+      await nextTick()
+      await startEditing(newNode, 'new')
+    }
     return
   }
 
   // Delete - 删除节点
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    // 如果焦点在输入框，不处理
-    if ((e.target as HTMLElement).tagName === 'INPUT') return
+    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
+      e.preventDefault()
+      await deleteNode()
+    }
+    return
+  }
 
-    e.preventDefault()
-    await deleteNode()
+  // 直接打字 - 编辑节点
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
+      // 开始编辑，字符作为输入开始
+      editingText.value = e.key
+      isEditing.value = true
+      editingNodeId.value = selectedNode.value.id
+
+      await nextTick()
+      editInputRef.value?.focus()
+      editInputRef.value?.select()
+    }
   }
 }
 
 onMounted(() => {
   taskStore.fetchAllTasks()
   window.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -408,6 +503,7 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .subtitle {
@@ -481,6 +577,7 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .hint-bar {
@@ -503,20 +600,26 @@ onUnmounted(() => {
   flex: 1;
 }
 
-.dialog-hint {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #999;
+/* 内联编辑框 */
+.inline-edit {
+  position: absolute;
+  z-index: 100;
+  pointer-events: auto;
 }
 
-.dialog-footer {
-  display: flex;
-  justify-content: space-between;
+.edit-input {
+  width: 150px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 2px solid #008080;
+  border-radius: 20px;
+  outline: none;
+  box-shadow: 0 2px 8px rgba(0,128,128,0.3);
 }
 
-.footer-right {
-  display: flex;
-  gap: 8px;
+.edit-input:focus {
+  border-color: #00a0a0;
+  box-shadow: 0 2px 12px rgba(0,128,128,0.4);
 }
 
 @media (max-width: 768px) {
