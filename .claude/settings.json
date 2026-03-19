@@ -41,7 +41,11 @@
       "Bash(curl -s -X POST http://localhost:8081/api/tasks -H \"Content-Type: application/json\" -d '{\"\"title\"\":\"\"测试任务\"\",\"\"status\"\":\"\"INBOX\"\"}')",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/api/tasks)",
       "WebSearch",
-      "Bash(grep -r export node_modules/mind-elixir/dist/*.js)"
+      "Bash(grep -r export node_modules/mind-elixir/dist/*.js)",
+      "Read(//Users/xurui/.claude/skills/**)",
+      "Bash(npx skills:*)",
+      "Bash(npm search:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

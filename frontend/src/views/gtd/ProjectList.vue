@@ -46,27 +46,52 @@
       <!-- 右侧思维导图 -->
       <div class="mindmap-container">
         <div v-if="selectedProject" class="mindmap-wrapper">
-          <div id="mindmap" ref="mindmapRef"></div>
+          <VueFlow
+            :nodes="nodes"
+            :edges="edges"
+            :default-viewport="{ zoom: 0.8 }"
+            :min-zoom="0.2"
+            :max-zoom="2"
+            fit-view-on-init
+            class="mindmap-flow"
+          >
+            <Background pattern-color="#aaa" :gap="16" />
+            <Controls />
+          </VueFlow>
+
           <div class="mindmap-toolbar">
-            <el-button size="small" @click="addChildNode">添加子步骤</el-button>
-            <el-button size="small" type="danger" @click="deleteSelectedNode" :disabled="!selectedNode || selectedNode.id === selectedProject.id">
-              删除选中
+            <el-button type="primary" @click="addChildNode">
+              <el-icon><Plus /></el-icon>
+              添加子步骤
             </el-button>
+            <el-button @click="fitView">适应画布</el-button>
           </div>
         </div>
         <el-empty v-else description="选择一个项目开始分解" :image-size="80" />
       </div>
     </div>
+
+    <!-- 添加子节点对话框 -->
+    <el-dialog v-model="dialogVisible" title="添加子步骤" width="400px">
+      <el-input v-model="newChildTitle" placeholder="请输入子步骤名称" @keydown.enter="confirmAddChild" />
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmAddChild">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import MindElixir from 'mind-elixir'
+import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import type { Node, Edge } from '@vue-flow/core'
 
 const taskStore = useTaskStore()
 const projects = computed(() => taskStore.tasksByStatus[TaskStatus.PROJECT] || [])
@@ -87,97 +112,113 @@ const handleAddProject = async () => {
 
 // 选择的项目
 const selectedProject = ref<Task | null>(null)
-const mindmapRef = ref<HTMLElement | null>(null)
-let mindInstance: any = null
-const selectedNode = ref<any>(null)
+const nodes = ref<Node[]>([])
+const edges = ref<Edge[]>([])
+
+const { fitView } = useVueFlow()
+
+// 所有子任务缓存
+const allSubTasks = ref<Task[]>([])
 
 const selectProject = async (project: Task) => {
   selectedProject.value = project
-  // 获取子任务
-  const subTasks = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
 
-  await nextTick()
-  initMindMap(project, subTasks || [])
+  // 获取所有项目子任务
+  allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
+
+  // 筛选出当前项目的子任务
+  const subTasks = allSubTasks.value.filter(t => t.parentId === project.id)
+
+  buildMindMap(project, subTasks)
 }
 
-// 初始化思维导图
-const initMindMap = (project: Task, subTasks: Task[]) => {
-  if (!mindmapRef.value) return
-
-  // 构建思维导图数据
-  const children = subTasks.map((task) => ({
-    id: `sub_${task.id}`,
-    topic: task.title,
-    taskId: task.id
-  }))
-
-  const data = {
-    nodeData: {
-      id: String(project.id),
-      topic: project.title,
-      children: children
+// 构建思维导图
+const buildMindMap = (project: Task, subTasks: Task[]) => {
+  // 根节点
+  const rootNode: Node = {
+    id: `root-${project.id}`,
+    position: { x: 250, y: 300 },
+    data: { label: project.title, isRoot: true },
+    style: {
+      background: '#008080',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      padding: '15px 25px',
+      fontSize: '16px',
+      fontWeight: 'bold'
     }
   }
 
-  // 如果已有实例，先销毁
-  if (mindInstance) {
-    mindInstance.destroy()
-  }
+  const newNodes: Node[] = [rootNode]
+  const newEdges: Edge[] = []
 
-  mindInstance = new MindElixir({
-    el: mindmapRef.value,
-    direction: 1,
-    theme: 'light' as any,
-    contextMenu: false,
-    toolBar: false
+  // 子节点
+  const levelWidth = 300
+  subTasks.forEach((task, index) => {
+    const nodeId = `task-${task.id}`
+    const row = Math.floor(index / 3)
+    const col = index % 3
+
+    const node: Node = {
+      id: nodeId,
+      position: {
+        x: 600 + col * levelWidth,
+        y: 100 + row * 150
+      },
+      data: { label: task.title, taskId: task.id },
+      style: {
+        background: '#fff',
+        border: '2px solid #008080',
+        borderRadius: '20px',
+        padding: '10px 20px',
+        fontSize: '14px'
+      }
+    }
+
+    newNodes.push(node)
+
+    // 连接线
+    newEdges.push({
+      id: `edge-${project.id}-${task.id}`,
+      source: `root-${project.id}`,
+      target: nodeId,
+      type: 'smoothstep',
+      style: { stroke: '#008080', strokeWidth: 2 },
+      animated: false
+    })
   })
 
-  mindInstance.init(data)
-
-  // 监听节点选中
-  mindInstance.on('selectNode', (node: any) => {
-    selectedNode.value = node
-  })
+  nodes.value = newNodes
+  edges.value = newEdges
 }
 
 // 添加子节点
+const dialogVisible = ref(false)
+const newChildTitle = ref('')
+
 const addChildNode = () => {
-  if (!mindInstance || !selectedProject.value) return
-
-  const newTopic = prompt('请输入子步骤名称：')
-  if (!newTopic?.trim()) return
-
-  // 创建子任务
-  taskStore.createTask({
-    title: newTopic.trim(),
-    status: TaskStatus.PROJECT,
-    parentId: selectedProject.value.id
-  }).then(() => {
-    // 刷新思维导图
-    selectProject(selectedProject.value!)
-    ElMessage.success('子步骤已添加')
-  })
+  if (!selectedProject.value) return
+  dialogVisible.value = true
+  newChildTitle.value = ''
 }
 
-// 删除选中节点
-const deleteSelectedNode = async () => {
-  if (!selectedNode.value || selectedNode.value.id === String(selectedProject.value?.id)) {
-    ElMessage.warning('不能删除根节点')
-    return
-  }
+const confirmAddChild = async () => {
+  if (!newChildTitle.value.trim() || !selectedProject.value) return
 
-  await ElMessageBox.confirm('确定要删除这个子步骤吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
+  await taskStore.createTask({
+    title: newChildTitle.value.trim(),
+    status: TaskStatus.PROJECT,
+    parentId: selectedProject.value.id
   })
 
-  const taskId = selectedNode.value?.taskId
-  if (taskId) {
-    await taskStore.deleteTask(taskId)
-    selectProject(selectedProject.value!)
-    ElMessage.success('已删除')
-  }
+  dialogVisible.value = false
+
+  // 刷新思维导图
+  const subTasks = allSubTasks.value.filter(t => t.parentId === selectedProject.value?.id)
+  buildMindMap(selectedProject.value, subTasks)
+
+  ElMessage.success('子步骤已添加')
 }
 
 // 处理菜单命令
@@ -200,6 +241,13 @@ onMounted(() => {
   taskStore.fetchAllTasks()
 })
 </script>
+
+<style>
+/* 全局样式引入 Vue Flow */
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+</style>
 
 <style scoped>
 .project-page {
@@ -270,8 +318,7 @@ onMounted(() => {
   background: white;
   border-radius: 8px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -282,7 +329,7 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.mindmap-wrapper #mindmap {
+.mindmap-flow {
   flex: 1;
   min-height: 400px;
 }
@@ -306,7 +353,7 @@ onMounted(() => {
     max-height: 200px;
   }
 
-  .mindmap-wrapper #mindmap {
+  .mindmap-flow {
     min-height: 300px;
   }
 }
