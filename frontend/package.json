@@ -15,7 +15,8 @@
     "mind-elixir": "^5.9.3",
     "pinia": "^3.0.4",
     "vue": "^3.5.30",
-    "vue-router": "^5.0.3"
+    "vue-router": "^5.0.3",
+    "vue3-tree-org": "^4.2.2"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
