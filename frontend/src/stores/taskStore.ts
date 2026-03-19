@@ -19,6 +19,9 @@ export const useTaskStore = defineStore('tasks', () => {
       TRASH: [],
       DONE: []
     }
+    if (!Array.isArray(tasks.value)) {
+      return grouped
+    }
     tasks.value.forEach(task => {
       if (grouped[task.status]) {
         grouped[task.status].push(task)
@@ -32,7 +35,7 @@ export const useTaskStore = defineStore('tasks', () => {
     loading.value = true
     try {
       const res = await taskApi.getAll()
-      tasks.value = res.data
+      tasks.value = Array.isArray(res.data) ? res.data : []
     } finally {
       loading.value = false
     }
