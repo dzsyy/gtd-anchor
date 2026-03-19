@@ -1,9 +1,9 @@
 <template>
   <div class="project-page">
     <h2>项目清单</h2>
-    <p class="subtitle">选中节点 → Tab添加子节点 / Enter添加同级节点 / 直接打字编辑</p>
+    <p class="subtitle">树状图展示，点击选中 → Tab添加子节点 / Enter添加同级 / 打字直接编辑</p>
 
-    <!-- 项目列表 + 思维导图 -->
+    <!-- 项目列表 + 树状图 -->
     <div class="project-container">
       <!-- 左侧项目列表 -->
       <div class="project-sidebar">
@@ -43,67 +43,52 @@
         </el-scrollbar>
       </div>
 
-      <!-- 右侧思维导图 -->
-      <div class="mindmap-container">
-        <div v-if="selectedProject" class="mindmap-wrapper">
+      <!-- 右侧树状图 -->
+      <div class="tree-container">
+        <div v-if="selectedProject" class="tree-wrapper">
           <!-- 操作提示 -->
           <div class="hint-bar">
-            <span v-if="isEditing">正在编辑... 输入完成按 Enter</span>
-            <span v-else-if="selectedNode">已选中: {{ selectedNode.data?.label || '根节点' }}</span>
-            <span v-else>点击选择一个节点</span>
-            <span class="hint-keys">Tab: 子节点 | Enter: 同级 | 打字: 编辑</span>
+            <span class="hint-keys">Tab: 子节点 | Enter: 同级 | 打字: 编辑 | Delete: 删除</span>
           </div>
 
-          <VueFlow
-            ref="vueFlowRef"
-            :nodes="nodes"
-            :edges="edges"
-            :default-viewport="{ x: 0, y: 300, zoom: 0.8 }"
-            :min-zoom="0.2"
-            :max-zoom="2"
-            fit-view-on-init
-            class="mindmap-flow"
-            @node-click="onNodeClick"
-            @pane-click="onPaneClick"
-          >
-            <Background pattern-color="#aaa" :gap="20" />
-            <Controls />
-          </VueFlow>
+          <!-- 树状图 -->
+          <div class="tree-view">
+            <TreeNode
+              :node="rootNode"
+              :selected-id="selectedNodeId"
+              @select="onSelectNode"
+              @add-child="onAddChild"
+              @add-sibling="onAddSibling"
+              @delete="onDeleteNode"
+            />
+          </div>
         </div>
         <el-empty v-else description="选择一个项目开始分解" :image-size="80" />
       </div>
     </div>
 
-    <!-- 内联编辑输入框 -->
-    <div
+    <!-- 内联编辑框 -->
+    <input
       v-if="isEditing"
+      ref="editInputRef"
+      v-model="editingText"
       class="inline-edit"
       :style="editBoxStyle"
-    >
-      <input
-        ref="editInputRef"
-        v-model="editingText"
-        class="edit-input"
-        @keydown.enter="finishEditing"
-        @keydown.tab.prevent="finishEditingAndAddChild"
-        @keydown.escape="cancelEditing"
-        @blur="finishEditing"
-      />
-    </div>
+      @keydown.enter="finishEditing"
+      @keydown.tab.prevent="finishEditingAndAddChild"
+      @keydown.escape="cancelEditing"
+      @blur="finishEditing"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
-import type { CSSProperties } from 'vue'
+import { ref, computed, onMounted, nextTick, reactive, h } from 'vue'
 import { useTaskStore } from '../../stores/taskStore'
 import { TaskStatus, type Task } from '../../types'
 import { More, Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { VueFlow } from '@vue-flow/core'
-import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
-import type { Node, Edge } from '@vue-flow/core'
+import type { CSSProperties } from 'vue'
 
 const taskStore = useTaskStore()
 const projects = computed(() => taskStore.tasksByStatus[TaskStatus.PROJECT] || [])
@@ -124,10 +109,21 @@ const handleAddProject = async () => {
 
 // 选择的项目
 const selectedProject = ref<Task | null>(null)
-const selectedNode = ref<Node | null>(null)
-const nodes = ref<Node[]>([])
-const edges = ref<Edge[]>([])
+const selectedNodeId = ref<string | null>(null)
 const allSubTasks = ref<Task[]>([])
+
+// 树形数据
+interface TreeNodeData {
+  id: string
+  label: string
+  taskId?: number
+  children: TreeNodeData[]
+}
+const rootNode = reactive<TreeNodeData>({
+  id: '',
+  label: '',
+  children: []
+})
 
 // 编辑状态
 const isEditing = ref(false)
@@ -138,204 +134,111 @@ const editBoxStyle = ref<CSSProperties>({})
 
 const selectProject = async (project: Task) => {
   selectedProject.value = project
-  selectedNode.value = null
+  selectedNodeId.value = null
   isEditing.value = false
   allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
-  const subTasks = allSubTasks.value.filter(t => t.parentId === project.id)
-  buildMindMap(project, subTasks)
+  buildTree(project)
 }
 
-// 构建思维导图 - 左对齐
-const buildMindMap = (project: Task, subTasks: Task[]) => {
-  const newNodes: Node[] = []
-  const newEdges: Edge[] = []
+// 构建树形数据
+const buildTree = (project: Task) => {
+  const subTasks = allSubTasks.value.filter(t => t.parentId === project.id)
 
-  // 根节点
-  const rootNode: Node = {
-    id: `root-${project.id}`,
-    position: { x: 600, y: 300 },
-    data: { label: project.title, isRoot: true },
-    style: {
-      background: 'linear-gradient(135deg, #008080 0%, #006666 100%)',
-      color: 'white',
-      border: 'none',
-      borderRadius: '25px',
-      padding: '18px 30px',
-      fontSize: '16px',
-      fontWeight: 'bold',
-      boxShadow: '0 4px 15px rgba(0,128,128,0.3)'
+  rootNode.id = `root-${project.id}`
+  rootNode.label = project.title
+  rootNode.taskId = project.id
+  rootNode.children = []
+
+  // 递归构建子树
+  const buildChildren = (parentId: number | undefined): TreeNodeData[] => {
+    if (!parentId) return []
+    return subTasks
+      .filter(t => t.parentId === parentId)
+      .map(task => ({
+        id: `task-${task.id}`,
+        label: task.title,
+        taskId: task.id,
+        children: buildChildren(task.id)
+      }))
+  }
+
+  rootNode.children = buildChildren(project.id)
+}
+
+// 选中节点
+const onSelectNode = (nodeId: string, rect?: DOMRect) => {
+  selectedNodeId.value = nodeId
+  isEditing.value = false
+
+  // 计算编辑框位置
+  if (rect) {
+    editBoxStyle.value = {
+      left: `${rect.right + 10}px`,
+      top: `${rect.top}px`
     }
   }
-  newNodes.push(rootNode)
-
-  // 子节点 - 垂直排列
-  const levelX = 100
-  const startY = 100
-  const gapY = 120
-
-  subTasks.forEach((task, index) => {
-    const nodeId = `task-${task.id}`
-    const y = startY + index * gapY
-
-    const node: Node = {
-      id: nodeId,
-      position: { x: levelX, y },
-      data: { label: task.title, taskId: task.id, parentId: task.parentId },
-      style: {
-        background: '#fff',
-        border: '2px solid #008080',
-        borderRadius: '20px',
-        padding: '12px 24px',
-        fontSize: '14px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }
-    }
-    newNodes.push(node)
-
-    newEdges.push({
-      id: `edge-${project.id}-${task.id}`,
-      source: `root-${project.id}`,
-      target: nodeId,
-      type: 'smoothstep',
-      style: { stroke: '#008080', strokeWidth: 2 }
-    })
-  })
-
-  nodes.value = newNodes
-  edges.value = newEdges
 }
 
-// 点击画布 - 取消选择
-const onPaneClick = () => {
-  selectedNode.value = null
-  isEditing.value = false
-}
-
-// 点击节点 - 选中
-const onNodeClick = (event: any) => {
-  const node = event.node
-  selectedNode.value = node
-}
-
-// 开始编辑
-const startEditing = async (node: Node | null, mode: 'new' | 'edit' = 'edit') => {
+// 添加子节点
+const onAddChild = async (nodeId: string) => {
   if (!selectedProject.value) return
 
-  // 如果是编辑模式且有选中节点
-  if (mode === 'edit' && node) {
-    editingNodeId.value = node.id
-    editingText.value = node.data.label || ''
+  let parentId: number | undefined
+
+  if (nodeId.startsWith('root-')) {
+    parentId = selectedProject.value.id
   } else {
-    editingNodeId.value = null
-    editingText.value = ''
-  }
-
-  isEditing.value = true
-
-  await nextTick()
-
-  // 计算输入框位置（基于节点位置）
-  if (node && node.position) {
-    editBoxStyle.value = {
-      left: `${node.position.x + 50}px`,
-      top: `${node.position.y + 20}px`
-    }
-  } else {
-    // 新节点在选中节点旁边
-    if (selectedNode.value?.position) {
-      editBoxStyle.value = {
-        left: `${selectedNode.value.position.x + 200}px`,
-        top: `${selectedNode.value.position.y + 20}px`
-      }
+    const taskId = parseInt(nodeId.replace('task-', ''))
+    if (!isNaN(taskId)) {
+      parentId = taskId
     }
   }
 
-  editInputRef.value?.focus()
+  if (!parentId) return
+
+  const newTask = await taskStore.createTask({
+    title: '新步骤',
+    status: TaskStatus.PROJECT,
+    parentId
+  })
+
+  await refreshAndSelect(`task-${newTask.id}`)
 }
 
-// 完成编辑 - 保存
-const finishEditing = async () => {
-  if (!editingText.value.trim()) {
-    isEditing.value = false
-    return
-  }
+// 添加同级节点
+const onAddSibling = async (nodeId: string) => {
+  if (!selectedProject.value) return
 
-  if (editingNodeId.value) {
-    // 编辑现有节点
-    const taskId = nodes.value.find(n => n.id === editingNodeId.value)?.data.taskId
-    if (taskId) {
-      const task = allSubTasks.value.find(t => t.id === taskId)
-      if (task) {
-        await taskStore.updateTask(taskId, { ...task, title: editingText.value.trim() })
-      }
-    }
+  let parentId: number | undefined
+
+  if (nodeId.startsWith('root-')) {
+    parentId = selectedProject.value.id
   } else {
-    // 新建节点 - 作为根节点的子节点
-    await taskStore.createTask({
-      title: editingText.value.trim(),
-      status: TaskStatus.PROJECT,
-      parentId: selectedProject.value!.id
-    })
+    const taskId = parseInt(nodeId.replace('task-', ''))
+    const task = allSubTasks.value.find(t => t.id === taskId)
+    parentId = task?.parentId || selectedProject.value!.id
   }
 
-  isEditing.value = false
-  editingNodeId.value = null
+  if (!parentId) return
 
-  // 刷新
-  await refreshMindMap()
-}
+  const newTask = await taskStore.createTask({
+    title: '新步骤',
+    status: TaskStatus.PROJECT,
+    parentId
+  })
 
-// 完成编辑并添加子节点
-const finishEditingAndAddChild = async () => {
-  // 先保存当前编辑
-  if (editingText.value.trim()) {
-    await finishEditing()
-
-    // 然后添加子节点
-    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
-      const parentTaskId = selectedNode.value.data.taskId
-      if (parentTaskId) {
-        // 创建子任务
-        const newTask = await taskStore.createTask({
-          title: '新步骤',
-          status: TaskStatus.PROJECT,
-          parentId: parentTaskId
-        })
-
-        // 刷新并选中新节点
-        await refreshMindMap()
-
-        // 找到新节点并开始编辑
-        const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
-        if (newNode) {
-          selectedNode.value = newNode
-          await nextTick()
-          await startEditing(newNode, 'new')
-        }
-      }
-    }
-  }
-}
-
-// 取消编辑
-const cancelEditing = () => {
-  isEditing.value = false
-  editingNodeId.value = null
-  editingText.value = ''
+  await refreshAndSelect(`task-${newTask.id}`)
 }
 
 // 删除节点
-const deleteNode = async () => {
-  if (!selectedNode.value) return
-
-  // 不能删除根节点
-  if (selectedNode.value.id.startsWith('root-')) {
+const onDeleteNode = async (nodeId: string) => {
+  if (nodeId.startsWith('root-')) {
     ElMessage.warning('不能删除根节点')
     return
   }
 
-  const taskId = selectedNode.value.data.taskId
-  if (!taskId) return
+  const taskId = parseInt(nodeId.replace('task-', ''))
+  if (isNaN(taskId)) return
 
   await ElMessageBox.confirm('确定要删除这个步骤吗？', '提示', {
     confirmButtonText: '确定',
@@ -344,18 +247,69 @@ const deleteNode = async () => {
   })
 
   await taskStore.deleteTask(taskId)
-  selectedNode.value = null
-
-  await refreshMindMap()
+  selectedNodeId.value = null
+  await refreshTree()
   ElMessage.success('已删除')
 }
 
-// 刷新思维导图
-const refreshMindMap = async () => {
+// 刷新并选中新节点
+const refreshAndSelect = async (nodeId: string) => {
+  allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
+  buildTree(selectedProject.value!)
+  selectedNodeId.value = nodeId
+  isEditing.value = true
+  editingNodeId.value = nodeId
+  editingText.value = ''
+
+  await nextTick()
+  editInputRef.value?.focus()
+}
+
+// 刷新树
+const refreshTree = async () => {
   if (!selectedProject.value) return
   allSubTasks.value = await taskStore.fetchTasksByStatus(TaskStatus.PROJECT)
-  const subTasks = allSubTasks.value.filter(t => t.parentId === selectedProject.value?.id)
-  buildMindMap(selectedProject.value, subTasks)
+  buildTree(selectedProject.value)
+}
+
+// 完成编辑
+const finishEditing = async () => {
+  if (!editingText.value.trim()) {
+    isEditing.value = false
+    return
+  }
+
+  if (editingNodeId.value) {
+    if (editingNodeId.value.startsWith('root-')) {
+      // 根节点不能编辑
+    } else {
+      const taskId = parseInt(editingNodeId.value.replace('task-', ''))
+      if (isNaN(taskId)) return
+      const task = allSubTasks.value.find(t => t.id === taskId)
+      if (task) {
+        await taskStore.updateTask(taskId, { ...task, title: editingText.value.trim() })
+      }
+    }
+  }
+
+  isEditing.value = false
+  editingNodeId.value = null
+  await refreshTree()
+}
+
+// 完成编辑并添加子节点
+const finishEditingAndAddChild = async () => {
+  await finishEditing()
+  if (selectedNodeId.value) {
+    await onAddChild(selectedNodeId.value)
+  }
+}
+
+// 取消编辑
+const cancelEditing = () => {
+  isEditing.value = false
+  editingNodeId.value = null
+  editingText.value = ''
 }
 
 // 处理菜单命令
@@ -374,114 +328,59 @@ const handleCommand = async (command: string, project: Task) => {
   }
 }
 
-// 键盘事件处理
+// 键盘事件
 const handleKeydown = async (e: KeyboardEvent) => {
-  // 如果正在编辑，不处理
   if (isEditing.value) return
-
-  // 如果没有选中项目，不处理
   if (!selectedProject.value) return
-
-  // 如果焦点在输入框，不处理
   if ((e.target as HTMLElement).tagName === 'INPUT') return
 
   // Tab - 添加子节点
   if (e.key === 'Tab') {
     e.preventDefault()
-
-    if (!selectedNode.value) {
+    if (!selectedNodeId.value) {
       ElMessage.warning('请先选择一个节点')
       return
     }
-
-    // 如果选中根节点，添加为根节点的子节点
-    let parentTaskId: number | undefined
-    if (selectedNode.value.id.startsWith('root-')) {
-      parentTaskId = selectedProject.value!.id
-    } else {
-      parentTaskId = selectedNode.value.data.taskId
-    }
-
-    if (!parentTaskId) {
-      ElMessage.warning('无法添加子节点')
-      return
-    }
-
-    // 创建新的子节点
-    const newTask = await taskStore.createTask({
-      title: '新步骤',
-      status: TaskStatus.PROJECT,
-      parentId: parentTaskId
-    })
-
-    await refreshMindMap()
-
-    // 选中新节点并编辑
-    const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
-    if (newNode) {
-      selectedNode.value = newNode
-      await nextTick()
-      await startEditing(newNode, 'new')
-    }
+    await onAddChild(selectedNodeId.value)
     return
   }
 
   // Enter - 添加同级节点
   if (e.key === 'Enter') {
     e.preventDefault()
-
-    if (!selectedNode.value) {
+    if (!selectedNodeId.value) {
       ElMessage.warning('请先选择一个节点')
       return
     }
-
-    // 如果选中根节点，添加到根节点下
-    let parentId = selectedProject.value!.id
-
-    if (!selectedNode.value.id.startsWith('root-')) {
-      // 获取选中节点的父节点ID
-      const currentTaskId = selectedNode.value.data.taskId
-      const currentTask = allSubTasks.value.find(t => t.id === currentTaskId)
-      if (currentTask?.parentId) {
-        parentId = currentTask.parentId
-      }
-    }
-
-    // 创建同级节点
-    const newTask = await taskStore.createTask({
-      title: '新步骤',
-      status: TaskStatus.PROJECT,
-      parentId: parentId
-    })
-
-    await refreshMindMap()
-
-    // 选中新节点并编辑
-    const newNode = nodes.value.find(n => n.data.taskId === newTask.id)
-    if (newNode) {
-      selectedNode.value = newNode
-      await nextTick()
-      await startEditing(newNode, 'new')
-    }
+    await onAddSibling(selectedNodeId.value)
     return
   }
 
   // Delete - 删除节点
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
+    if (selectedNodeId.value && !selectedNodeId.value.startsWith('root-')) {
       e.preventDefault()
-      await deleteNode()
+      await onDeleteNode(selectedNodeId.value)
     }
     return
   }
 
-  // 直接打字 - 编辑节点
+  // 直接打字 - 编辑
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    if (selectedNode.value && !selectedNode.value.id.startsWith('root-')) {
-      // 开始编辑，字符作为输入开始
+    if (selectedNodeId.value && !selectedNodeId.value.startsWith('root-')) {
       editingText.value = e.key
       isEditing.value = true
-      editingNodeId.value = selectedNode.value.id
+      editingNodeId.value = selectedNodeId.value
+
+      // 找到节点位置
+      const nodeEl = document.querySelector(`[data-node-id="${selectedNodeId.value}"]`)
+      if (nodeEl) {
+        const rect = nodeEl.getBoundingClientRect()
+        editBoxStyle.value = {
+          left: `${rect.right + 10}px`,
+          top: `${rect.top}px`
+        }
+      }
 
       await nextTick()
       editInputRef.value?.focus()
@@ -494,13 +393,71 @@ onMounted(() => {
   taskStore.fetchAllTasks()
   window.addEventListener('keydown', handleKeydown)
 })
-</script>
 
-<style>
-@import '@vue-flow/core/dist/style.css';
-@import '@vue-flow/core/dist/theme-default.css';
-@import '@vue-flow/controls/dist/style.css';
-</style>
+// TreeNode 组件
+const TreeNode = {
+  props: {
+    node: Object,
+    selectedId: String,
+    depth: { type: Number, default: 0 }
+  },
+  emits: ['select', 'add-child', 'add-sibling', 'delete'],
+  setup(props: any, { emit }: any) {
+    const handleClick = (e: Event) => {
+      e.stopPropagation()
+      const rect = (e.target as HTMLElement).getBoundingClientRect()
+      emit('select', props.node.id, rect)
+    }
+
+    const handleAddChild = (e: Event) => {
+      e.stopPropagation()
+      emit('add-child', props.node.id)
+    }
+
+    const handleAddSibling = (e: Event) => {
+      e.stopPropagation()
+      emit('add-sibling', props.node.id)
+    }
+
+    const handleDelete = (e: Event) => {
+      e.stopPropagation()
+      emit('delete', props.node.id)
+    }
+
+    return () => h('div', { class: 'tree-node-wrapper' }, [
+      h('div', {
+        class: ['tree-node', { selected: props.selectedId === props.node.id }],
+        'data-node-id': props.node.id,
+        onClick: handleClick
+      }, [
+        h('span', { class: 'node-label' }, props.node.label),
+        h('div', { class: 'node-actions' }, [
+          h('button', { class: 'action-btn', onClick: handleAddChild, title: '添加子节点' }, '+'),
+          h('button', { class: 'action-btn', onClick: handleAddSibling, title: '添加同级' }, '↔'),
+          !props.node.id.startsWith('root-')
+            ? h('button', { class: 'action-btn delete', onClick: handleDelete, title: '删除' }, '×')
+            : null
+        ])
+      ]),
+      props.node.children?.length > 0
+        ? h('div', { class: 'tree-children' },
+            props.node.children.map((child: any) =>
+              h(TreeNode, {
+                key: child.id,
+                node: child,
+                selectedId: props.selectedId,
+                onSelect: (id: string, rect: DOMRect) => emit('select', id, rect),
+                onAddChild: (id: string) => emit('add-child', id),
+                onAddSibling: (id: string) => emit('add-sibling', id),
+                onDelete: (id: string) => emit('delete', id)
+              })
+            )
+          )
+        : null
+    ])
+  }
+}
+</script>
 
 <style scoped>
 .project-page {
@@ -529,6 +486,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -567,7 +525,7 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.mindmap-container {
+.tree-container {
   flex: 1;
   background: white;
   border-radius: 8px;
@@ -576,12 +534,11 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.mindmap-wrapper {
+.tree-wrapper {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  position: relative;
 }
 
 .hint-bar {
@@ -589,10 +546,6 @@ onMounted(() => {
   background: #f5f7fa;
   border-bottom: 1px solid #eee;
   font-size: 13px;
-  color: #666;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .hint-keys {
@@ -600,18 +553,97 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.mindmap-flow {
+.tree-view {
   flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+/* 树状图样式 */
+:deep(.tree-node-wrapper) {
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.tree-node) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #008080 0%, #006666 100%);
+  color: white;
+  border-radius: 20px;
+  cursor: pointer;
+  margin: 4px 0;
+  transition: all 0.2s;
+  position: relative;
+}
+
+:deep(.tree-node:hover) {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0,128,128,0.3);
+}
+
+:deep(.tree-node.selected) {
+  outline: 3px solid #ff6b6b;
+  outline-offset: 2px;
+}
+
+:deep(.tree-children) {
+  margin-left: 40px;
+  border-left: 2px dashed #008080;
+  padding-left: 20px;
+}
+
+:deep(.tree-node:not(.selected)) {
+  background: #fff;
+  color: #333;
+  border: 2px solid #008080;
+}
+
+:deep(.node-label) {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.node-actions) {
+  display: none;
+  gap: 4px;
+}
+
+:deep(.tree-node:hover .node-actions) {
+  display: flex;
+}
+
+:deep(.action-btn) {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.action-btn:hover) {
+  background: rgba(255,255,255,0.5);
+}
+
+:deep(.action-btn.delete:hover) {
+  background: #ff6b6b;
 }
 
 /* 内联编辑框 */
 .inline-edit {
-  position: absolute;
+  position: fixed;
   z-index: 100;
-  pointer-events: auto;
-}
-
-.edit-input {
   width: 150px;
   padding: 8px 12px;
   font-size: 14px;
@@ -619,11 +651,6 @@ onMounted(() => {
   border-radius: 20px;
   outline: none;
   box-shadow: 0 2px 8px rgba(0,128,128,0.3);
-}
-
-.edit-input:focus {
-  border-color: #00a0a0;
-  box-shadow: 0 2px 12px rgba(0,128,128,0.4);
 }
 
 @media (max-width: 768px) {
@@ -634,11 +661,6 @@ onMounted(() => {
   .project-sidebar {
     width: 100%;
     max-height: 200px;
-  }
-
-  .hint-bar {
-    flex-direction: column;
-    gap: 4px;
   }
 }
 </style>
