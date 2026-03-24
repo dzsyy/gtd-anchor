@@ -47,7 +47,10 @@
       "Bash(npm search:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm info:*)",
-      "WebFetch(domain:sangtian152.github.io)"
+      "WebFetch(domain:sangtian152.github.io)",
+      "Read(//Users/xurui/.claude/**)",
+      "Read(//Users/xurui/.agents/skills/**)",
+      "Bash(npm create:*)"
     ]
   }
 }

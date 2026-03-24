@@ -1,0 +1,108 @@
+import { useState, useEffect } from 'react'
+import { MoreVertical, Trash2, CheckCircle } from 'lucide-react'
+import { useTaskStore } from '@/store/taskStore'
+import { TaskStatus, type Task } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ScrollArea } from '@/components/ui/scroll-area'
+
+const CONTEXTS = ['@电脑', '@手机', '@外出', '@办公室', '@家里']
+
+export function NextActions() {
+  const { fetchTasksByStatus, updateTask, deleteTask } = useTaskStore()
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [selectedContext, setSelectedContext] = useState<string>('@电脑')
+
+  useEffect(() => {
+    loadTasks()
+  }, [selectedContext])
+
+  const loadTasks = async () => {
+    const data = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setTasks(data.filter((t) => t.contextTag === selectedContext))
+  }
+
+  const handleComplete = async (id: number) => {
+    await updateTask(id, { status: TaskStatus.DONE })
+    loadTasks()
+  }
+
+  const handleDelete = async (id: number) => {
+    await deleteTask(id)
+    loadTasks()
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-2">下一步行动</h2>
+      <p className="text-gray-500 mb-6">选择上下文，执行下一步行动</p>
+
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {CONTEXTS.map((ctx) => (
+          <Button
+            key={ctx}
+            variant={selectedContext === ctx ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedContext(ctx)}
+          >
+            {ctx}
+          </Button>
+        ))}
+      </div>
+
+      <Card>
+        <ScrollArea className="h-[calc(100vh-280px)]">
+          <CardContent className="p-4">
+            {tasks.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                该上下文暂无下一步行动
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group"
+                  >
+                    <span className="flex-1">{task.title}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => task.id && handleComplete(task.id)}
+                      className="opacity-0 group-hover:opacity-100"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      完成
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-red-500"
+                          onClick={() => task.id && handleDelete(task.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          删除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </ScrollArea>
+      </Card>
+    </div>
+  )
+}

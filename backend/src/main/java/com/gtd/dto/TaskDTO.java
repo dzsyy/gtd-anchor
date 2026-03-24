@@ -17,6 +17,10 @@ public class TaskDTO {
     private Long parentId;
     private String waitingFor;
     private Boolean isProject;
+    // 碎碎锚扩展字段
+    private Integer nodeLevel;
+    private Boolean isCompleted;
+    private LocalDateTime completedTime;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -53,6 +57,15 @@ public class TaskDTO {
 
     public Boolean getIsProject() { return isProject; }
     public void setIsProject(Boolean isProject) { this.isProject = isProject; }
+
+    public Integer getNodeLevel() { return nodeLevel; }
+    public void setNodeLevel(Integer nodeLevel) { this.nodeLevel = nodeLevel; }
+
+    public Boolean getIsCompleted() { return isCompleted; }
+    public void setIsCompleted(Boolean isCompleted) { this.isCompleted = isCompleted; }
+
+    public LocalDateTime getCompletedTime() { return completedTime; }
+    public void setCompletedTime(LocalDateTime completedTime) { this.completedTime = completedTime; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

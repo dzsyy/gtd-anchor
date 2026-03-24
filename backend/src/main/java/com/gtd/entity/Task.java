@@ -41,6 +41,16 @@ public class Task {
     @Column(name = "is_project")
     private Boolean isProject = false;
 
+    // 碎碎锚扩展字段
+    @Column(name = "node_level")
+    private Integer nodeLevel;  // 0-根节点, 1-里程碑, 2-模块, 3-粉末节点
+
+    @Column(name = "is_completed")
+    private Boolean isCompleted = false;  // 是否完成（仅粉末节点可标记）
+
+    @Column(name = "completed_time")
+    private LocalDateTime completedTime;  // 完成时间
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -82,6 +92,15 @@ public class Task {
 
     public Boolean getIsProject() { return isProject; }
     public void setIsProject(Boolean isProject) { this.isProject = isProject; }
+
+    public Integer getNodeLevel() { return nodeLevel; }
+    public void setNodeLevel(Integer nodeLevel) { this.nodeLevel = nodeLevel; }
+
+    public Boolean getIsCompleted() { return isCompleted; }
+    public void setIsCompleted(Boolean isCompleted) { this.isCompleted = isCompleted; }
+
+    public LocalDateTime getCompletedTime() { return completedTime; }
+    public void setCompletedTime(LocalDateTime completedTime) { this.completedTime = completedTime; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

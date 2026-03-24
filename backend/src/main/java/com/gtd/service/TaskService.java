@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,7 +45,10 @@ public class TaskService {
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO) {
         Task task = toEntity(taskDTO);
-        task.setStatus(TaskStatus.INBOX); // 默认进入收集箱
+        // 使用传入的状态，如果没有则默认进入收集箱
+        if (taskDTO.getStatus() == null) {
+            task.setStatus(TaskStatus.INBOX);
+        }
         Task saved = taskRepository.save(task);
         return toDTO(saved);
     }
@@ -65,6 +69,16 @@ public class TaskService {
         task.setParentId(taskDTO.getParentId());
         task.setWaitingFor(taskDTO.getWaitingFor());
         task.setIsProject(taskDTO.getIsProject());
+        // 碎碎锚扩展字段
+        task.setNodeLevel(taskDTO.getNodeLevel());
+        if (taskDTO.getIsCompleted() != null) {
+            task.setIsCompleted(taskDTO.getIsCompleted());
+            if (Boolean.TRUE.equals(taskDTO.getIsCompleted())) {
+                task.setCompletedTime(LocalDateTime.now());
+            } else {
+                task.setCompletedTime(null);
+            }
+        }
 
         Task updated = taskRepository.save(task);
         return toDTO(updated);
@@ -145,6 +159,10 @@ public class TaskService {
         dto.setParentId(task.getParentId());
         dto.setWaitingFor(task.getWaitingFor());
         dto.setIsProject(task.getIsProject());
+        // 碎碎锚扩展字段
+        dto.setNodeLevel(task.getNodeLevel());
+        dto.setIsCompleted(task.getIsCompleted());
+        dto.setCompletedTime(task.getCompletedTime());
         dto.setCreatedAt(task.getCreatedAt());
         dto.setUpdatedAt(task.getUpdatedAt());
         return dto;
@@ -163,6 +181,9 @@ public class TaskService {
         task.setParentId(dto.getParentId());
         task.setWaitingFor(dto.getWaitingFor());
         task.setIsProject(dto.getIsProject());
+        // 碎碎锚扩展字段
+        task.setNodeLevel(dto.getNodeLevel());
+        task.setIsCompleted(dto.getIsCompleted());
         return task;
     }
 }
