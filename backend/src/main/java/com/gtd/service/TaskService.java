@@ -59,18 +59,41 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task not found: " + id));
 
-        task.setTitle(taskDTO.getTitle());
-        task.setDescription(taskDTO.getDescription());
-        task.setStatus(taskDTO.getStatus());
-        task.setPriority(taskDTO.getPriority());
-        task.setContextTag(taskDTO.getContextTag());
-        task.setEstimatedTime(taskDTO.getEstimatedTime());
-        task.setDueDate(taskDTO.getDueDate());
-        task.setParentId(taskDTO.getParentId());
-        task.setWaitingFor(taskDTO.getWaitingFor());
-        task.setIsProject(taskDTO.getIsProject());
+        // 只更新非 null 的字段
+        if (taskDTO.getTitle() != null) {
+            task.setTitle(taskDTO.getTitle());
+        }
+        if (taskDTO.getDescription() != null) {
+            task.setDescription(taskDTO.getDescription());
+        }
+        if (taskDTO.getStatus() != null) {
+            task.setStatus(taskDTO.getStatus());
+        }
+        if (taskDTO.getPriority() != null) {
+            task.setPriority(taskDTO.getPriority());
+        }
+        if (taskDTO.getContextTag() != null) {
+            task.setContextTag(taskDTO.getContextTag());
+        }
+        if (taskDTO.getEstimatedTime() != null) {
+            task.setEstimatedTime(taskDTO.getEstimatedTime());
+        }
+        if (taskDTO.getDueDate() != null) {
+            task.setDueDate(taskDTO.getDueDate());
+        }
+        if (taskDTO.getParentId() != null) {
+            task.setParentId(taskDTO.getParentId());
+        }
+        if (taskDTO.getWaitingFor() != null) {
+            task.setWaitingFor(taskDTO.getWaitingFor());
+        }
+        if (taskDTO.getIsProject() != null) {
+            task.setIsProject(taskDTO.getIsProject());
+        }
         // 碎碎锚扩展字段
-        task.setNodeLevel(taskDTO.getNodeLevel());
+        if (taskDTO.getNodeLevel() != null) {
+            task.setNodeLevel(taskDTO.getNodeLevel());
+        }
         if (taskDTO.getIsCompleted() != null) {
             task.setIsCompleted(taskDTO.getIsCompleted());
             if (Boolean.TRUE.equals(taskDTO.getIsCompleted())) {

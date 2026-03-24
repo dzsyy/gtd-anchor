@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { message } from 'antd'
 import { Plus, Folder, Trash2, Check, ChevronRight, Sparkles } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
@@ -159,6 +160,12 @@ export function ProjectList() {
     const parentLevel = getParentLevel(parentId)
     const childCount = getChildCount(parentId)
 
+    // 不允许添加第五级节点
+    if (parentLevel >= NodeLevel.POWDER) {
+      message.warning("粉末动作已经是最后一级啦不能再拆了哦 ✨")
+      return
+    }
+
     if (parentLevel === NodeLevel.ROOT && childCount >= 3) {
       alert(GUIDE_MESSAGES[NodeLevel.MILESTONE])
       return
@@ -224,6 +231,13 @@ export function ProjectList() {
     const parentTask = allProjectTasks.find(t => t.id === parentId)
     if (!parentTask) return
     const parentLevel = parentTask.nodeLevel ?? NodeLevel.ROOT
+
+    // 不允许添加第五级节点
+    if (parentLevel >= NodeLevel.POWDER) {
+      message.warning("粉末动作已经是最后一级啦不能再拆了哦 ✨")
+      return
+    }
+
     let nodeLevel: 1 | 2 | 3 = NodeLevel.POWDER as 1 | 2 | 3
     if (parentLevel === NodeLevel.ROOT) nodeLevel = NodeLevel.MILESTONE as 1 | 2 | 3
     else if (parentLevel === NodeLevel.MILESTONE) nodeLevel = NodeLevel.MODULE as 1 | 2 | 3
@@ -261,6 +275,12 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
+  // 刷新思维导图数据
+  const handleRefresh = async () => {
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
   const handleToggleComplete = async (taskId: number) => {
     const task = allProjectTasks.find(t => t.id === taskId)
     if (!task) return
@@ -268,6 +288,7 @@ export function ProjectList() {
     await updateTask(taskId, {
       isCompleted: !task.isCompleted,
       completedTime: !task.isCompleted ? new Date().toISOString() : null,
+      status: task.status, // 保留原有 status
     })
 
     const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
@@ -454,6 +475,7 @@ export function ProjectList() {
                 onDelete={handleDeleteTask}
                 onToggleComplete={handleToggleComplete}
                 onUpdate={handleInlineUpdate}
+                onRefresh={handleRefresh}
               />
             </div>
 

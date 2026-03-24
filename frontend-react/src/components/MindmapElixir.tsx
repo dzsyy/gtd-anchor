@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import MindElixir from 'mind-elixir'
 import type { Task } from '@/types'
 import { NodeLevel } from '@/types'
-import { Modal } from 'antd'
+import { Modal, message } from 'antd'
 
 interface MindmapElixirProps {
   tasks: Task[]
@@ -12,6 +12,7 @@ interface MindmapElixirProps {
   onDelete: (taskId: number) => void
   onToggleComplete?: (taskId: number) => void
   onUpdate?: (taskId: number, data: { title: string }) => void
+  onRefresh?: () => void // 刷新数据回调
 }
 
 // 将任务转换为 mind-elixir 格式
@@ -64,6 +65,7 @@ export function MindmapElixir({
   onDelete,
   onToggleComplete,
   onUpdate,
+  onRefresh,
 }: MindmapElixirProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mindElixirRef = useRef<MindElixir | null>(null)
@@ -73,11 +75,11 @@ export function MindmapElixir({
     taskId: null,
     title: '',
   })
-  const [initialized, setInitialized] = useState(false)
+  const isFirstInit = useRef(true)
 
   // 用 ref 保存回调，避免闭包问题
-  const callbacksRef = useRef({ onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate })
-  callbacksRef.current = { onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate }
+  const callbacksRef = useRef({ onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh })
+  callbacksRef.current = { onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -126,8 +128,11 @@ export function MindmapElixir({
         return
       }
 
-      // 初始化完成后居中显示
-      me.toCenter()
+      // 首次初始化时居中显示，后续不再调用 toCenter()
+      if (isFirstInit.current) {
+        me.toCenter()
+        isFirstInit.current = false
+      }
 
       // 替换右键菜单为中文（使用 MutationObserver 监听菜单出现）
       const menuTextMap: Record<string, string> = {
@@ -164,7 +169,6 @@ export function MindmapElixir({
       }
 
       mindElixirRef.current = me
-      setInitialized(true)
       setError(null)
 
       // 监听节点编辑完成（即时保存）
@@ -172,10 +176,9 @@ export function MindmapElixir({
         const { name, obj, origin, objs } = e
         const cb = callbacksRef.current
 
-
-        // 通过 topic 在 tasks 数组里找对应的 task
-        const findTaskByTopic = (topic: string) => {
-          return tasks.find(t => t.title === topic)
+        // 通过 taskId 直接查找 task（比 title 更可靠）
+        const findTaskById = (id: number) => {
+          return tasks.find(t => t.id === id)
         }
 
         // 编辑完成
@@ -186,50 +189,61 @@ export function MindmapElixir({
           }
           // origin 是 "New Node" 说明是新节点，需要创建
           if (origin === 'New Node' || origin === '') {
-            // 新节点 - 需要创建
+            // 新节点 - 使用 obj.parent.id 获取父节点 taskId
             if (cb.onAddChild && obj.parent) {
-              const parentTopic = obj.parent.topic
-              const parentTask = findTaskByTopic(parentTopic)
-              if (parentTask?.id) {
-                await cb.onAddChild(parentTask.id, obj.topic)
+              const parentTaskId = parseInt(obj.parent.id)
+              if (!isNaN(parentTaskId)) {
+                // 检查父节点是否是粉末级别（第四级），如果是则不允许添加
+                const parentTask = tasks.find(t => t.id === parentTaskId)
+                if (parentTask && parentTask.nodeLevel >= 3) { // 3 = POWDER
+                  // 先显示提示
+                  message.warning("粉末动作已经是最后一级啦不能再拆了哦 ✨")
+                  // 延迟一下让 alert 关闭，然后刷新数据清除画布上的节点
+                  setTimeout(() => {
+                    if (cb.onRefresh) {
+                      cb.onRefresh()
+                    }
+                  }, 100)
+                  return
+                }
+
+                await cb.onAddChild(parentTaskId, obj.topic)
+                // 创建成功后聚焦到新节点
+                // 延迟一下让数据更新后再聚焦
+                setTimeout(() => {
+                  try {
+                    // 尝试通过节点ID聚焦
+                    const nodeId = obj.id
+                    if (nodeId && mindElixirRef.current) {
+                      // 使用 focusNode 方法聚焦到新节点
+                      (mindElixirRef.current as any).focusNode?.(nodeId)
+                    }
+                  } catch (e) {
+                    // 聚焦失败就居中
+                    mindElixirRef.current?.toCenter()
+                  }
+                }, 100)
               }
             }
           } else {
-            // 现有节点编辑 - 查找并更新
-            const task = findTaskByTopic(origin)
-            if (cb.onUpdate && task?.id) {
-              await cb.onUpdate(task.id, { title: obj.topic })
+            // 现有节点编辑 - 使用 obj.id 获取当前节点 taskId
+            const taskId = parseInt(obj.id)
+            if (cb.onUpdate && !isNaN(taskId)) {
+              await cb.onUpdate(taskId, { title: obj.topic })
             }
           }
         }
 
-        // 插入子节点 (addChild 事件)
-        if ((name === 'addChild' || name === 'insertChild') && obj && cb.onAddChild && obj.parent) {
-          const parentTopic = obj.parent.topic
-          const parentTask = findTaskByTopic(parentTopic)
-          if (parentTask?.id) {
-            await cb.onAddChild(parentTask.id, obj.topic)
-          }
-        }
-
-        // 插入同级节点
-        if (name === 'insertSibling' && obj && cb.onAddSibling && obj.parent) {
-          const parentTopic = obj.parent.topic
-          const parentTask = findTaskByTopic(parentTopic)
-          if (parentTask?.id) {
-            await cb.onAddSibling(parentTask.id, obj.topic)
-          }
-        }
 
         // 删除节点 - 显示确认 Modal
         if (name === 'removeNodes' && objs && objs.length > 0) {
           objs.forEach((node: any) => {
-            const topic = node.topic
-            if (topic) {
-              const task = tasks.find(t => t.title === topic)
-              if (task?.id) {
-                // 显示删除确认 Modal，而不是直接删除
-                setDeleteModal({ open: true, taskId: task.id, title: topic })
+            // 使用 node.id 获取 taskId
+            const taskId = parseInt(node.id)
+            if (!isNaN(taskId)) {
+              const task = tasks.find(t => t.id === taskId)
+              if (task) {
+                setDeleteModal({ open: true, taskId: task.id, title: task.title })
               }
             }
           })
