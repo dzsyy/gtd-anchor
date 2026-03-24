@@ -76,6 +76,7 @@ export function MindmapElixir({
     title: '',
   })
   const isFirstInit = useRef(true)
+  const prevProjectId = useRef<number | null>(null)
 
   // 用 ref 保存回调，避免闭包问题
   const callbacksRef = useRef({ onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh })
@@ -83,6 +84,13 @@ export function MindmapElixir({
 
   useEffect(() => {
     if (!containerRef.current) return
+
+    // 只在项目变化时重新初始化，tasks 更新时不重新创建
+    if (prevProjectId.current === selectedProjectId && mindElixirRef.current) {
+      // 项目没变，tasks 更新了，但保持现有视图
+      return
+    }
+    prevProjectId.current = selectedProjectId
 
     const nodeData = convertToMindElixirData(tasks, selectedProjectId)
     if (!nodeData) {
@@ -128,11 +136,7 @@ export function MindmapElixir({
         return
       }
 
-      // 首次初始化时居中显示，后续不再调用 toCenter()
-      if (isFirstInit.current) {
-        me.toCenter()
-        isFirstInit.current = false
-      }
+      // 不自动居中，保持用户视角
 
       // 替换右键菜单为中文（使用 MutationObserver 监听菜单出现）
       const menuTextMap: Record<string, string> = {
@@ -219,8 +223,7 @@ export function MindmapElixir({
                       (mindElixirRef.current as any).focusNode?.(nodeId)
                     }
                   } catch (e) {
-                    // 聚焦失败就居中
-                    mindElixirRef.current?.toCenter()
+                    // 聚焦失败，不做处理
                   }
                 }, 100)
               }
