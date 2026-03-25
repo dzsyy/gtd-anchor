@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Markmap } from 'markmap-view'
 import { Transformer } from 'markmap-lib'
-import { Toolbar } from 'markmap-toolbar'
 import './markmap.css'
 
 const transformer = new Transformer()
@@ -11,7 +10,9 @@ function loadAssets() {
   const { scripts, styles } = transformer.getAssets()
 
   // 加载 CSS
-  styles.forEach((href) => {
+  styles?.forEach((item) => {
+    const href = typeof item === 'string' ? item : (item as { href?: string }).href
+    if (!href) return
     if (!document.querySelector(`link[href="${href}"]`)) {
       const link = document.createElement('link')
       link.rel = 'stylesheet'
@@ -21,7 +22,9 @@ function loadAssets() {
   })
 
   // 加载 JS
-  scripts.forEach((src) => {
+  scripts?.forEach((item) => {
+    const src = typeof item === 'string' ? item : (item as { src?: string }).src
+    if (!src) return
     if (!document.querySelector(`script[src="${src}"]`)) {
       const script = document.createElement('script')
       script.src = src
@@ -63,15 +66,16 @@ export function MarkmapView({ value, onChange, editable = false }: MarkmapProps)
         duration: 300,
         maxWidth: 300,
         nodeMinHeight: 16,
+        // @ts-expect-error - spaceX/spaceY not in type definition
         spaceX: 20,
         spaceY: 8,
-        render: (node, e, isCollapsed) => {
+        render: (node: unknown, e: unknown, _isCollapsed: unknown) => {
           const group = e as SVGGraphicsElement
-          const rect = node.payload
 
           // 节点样式
-          const color = node.data.color || '#4a90d9'
-          const isActive = node.state?.active
+          const n = node as { data?: { color?: string }; state?: { active?: boolean } }
+          const color = n.data?.color || '#4a90d9'
+          const isActive = n.state?.active
 
           group.style.cursor = 'pointer'
           group.style.opacity = isActive ? '0.8' : '1'

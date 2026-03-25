@@ -68,14 +68,14 @@ export function MindmapElixir({
   onRefresh,
 }: MindmapElixirProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mindElixirRef = useRef<MindElixir | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mindElixirRef = useRef<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; taskId: number | null; title: string }>({
     open: false,
     taskId: null,
     title: '',
   })
-  const isFirstInit = useRef(true)
   const prevProjectId = useRef<number | null>(null)
 
   // 用 ref 保存回调，避免闭包问题
@@ -116,6 +116,7 @@ export function MindmapElixir({
       const me = new MindElixir({
         el: containerRef.current,
         direction: 1,
+        // @ts-expect-error - locale type mismatch
         locale: 'zh',
         draggable: true,
         zoomable: true,
@@ -180,11 +181,6 @@ export function MindmapElixir({
         const { name, obj, origin, objs } = e
         const cb = callbacksRef.current
 
-        // 通过 taskId 直接查找 task（比 title 更可靠）
-        const findTaskById = (id: number) => {
-          return tasks.find(t => t.id === id)
-        }
-
         // 编辑完成
         if (name === 'finishEdit' && obj) {
           // 如果内容为空或等于默认值，不创建新节点
@@ -195,11 +191,11 @@ export function MindmapElixir({
           if (origin === 'New Node' || origin === '') {
             // 新节点 - 使用 obj.parent.id 获取父节点 taskId
             if (cb.onAddChild && obj.parent) {
-              const parentTaskId = parseInt(obj.parent.id)
+              const parentTaskId = obj.parent.id != null ? parseInt(String(obj.parent.id)) : NaN
               if (!isNaN(parentTaskId)) {
                 // 检查父节点是否是粉末级别（第四级），如果是则不允许添加
                 const parentTask = tasks.find(t => t.id === parentTaskId)
-                if (parentTask && parentTask.nodeLevel >= 3) { // 3 = POWDER
+                if (parentTask && (parentTask.nodeLevel ?? 0) >= 3) { // 3 = POWDER
                   // 先显示提示
                   message.warning("粉末动作已经是最后一级啦不能再拆了哦 ✨")
                   // 延迟一下让 alert 关闭，然后刷新数据清除画布上的节点
@@ -230,7 +226,7 @@ export function MindmapElixir({
             }
           } else {
             // 现有节点编辑 - 使用 obj.id 获取当前节点 taskId
-            const taskId = parseInt(obj.id)
+            const taskId = obj.id != null ? parseInt(String(obj.id)) : NaN
             if (cb.onUpdate && !isNaN(taskId)) {
               await cb.onUpdate(taskId, { title: obj.topic })
             }
@@ -242,10 +238,10 @@ export function MindmapElixir({
         if (name === 'removeNodes' && objs && objs.length > 0) {
           objs.forEach((node: any) => {
             // 使用 node.id 获取 taskId
-            const taskId = parseInt(node.id)
+            const taskId = node.id != null ? parseInt(String(node.id)) : NaN
             if (!isNaN(taskId)) {
               const task = tasks.find(t => t.id === taskId)
-              if (task) {
+              if (task && task.id != null) {
                 setDeleteModal({ open: true, taskId: task.id, title: task.title })
               }
             }

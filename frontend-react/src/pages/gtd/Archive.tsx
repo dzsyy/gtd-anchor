@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { RotateCcw, FolderKanban, ChevronLeft, Search } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
@@ -238,7 +238,6 @@ export function Archive() {
   // 渲染项目详情视图
   const renderProjectDetailView = () => {
     const projectTasks = selectedProjectId ? getProjectTasks(selectedProjectId) : []
-    const project = projects.find(p => p.id === selectedProjectId)
 
     return (
       <div className="space-y-2">

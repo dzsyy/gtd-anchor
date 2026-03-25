@@ -46,14 +46,15 @@ function TreeNode({ task, tasks, level, onAddChild, onDelete, onToggleComplete }
   const [collapsed, setCollapsed] = useState(false)
   const children = tasks.filter(t => t.parentId === task.id)
   const hasChildren = children.length > 0
-  const levelClass = getLevelClass(task.nodeLevel)
+  const levelClass = getLevelClass(task.nodeLevel ?? null)
 
   // 根据层级添加class
   const getNodeClass = () => {
     if (level === 0) return 'mindmap-node root-node'
-    if (task.nodeLevel === NodeLevel.MILESTONE) return 'mindmap-node milestone-node'
-    if (task.nodeLevel === NodeLevel.MODULE) return 'mindmap-node module-node'
-    if (task.nodeLevel === NodeLevel.POWDER) return 'mindmap-node powder-node'
+    const nodeLevel = task.nodeLevel ?? 0
+    if (nodeLevel === NodeLevel.MILESTONE) return 'mindmap-node milestone-node'
+    if (nodeLevel === NodeLevel.MODULE) return 'mindmap-node module-node'
+    if (nodeLevel === NodeLevel.POWDER) return 'mindmap-node powder-node'
     return 'mindmap-node'
   }
 
@@ -61,7 +62,7 @@ function TreeNode({ task, tasks, level, onAddChild, onDelete, onToggleComplete }
     <div className={getNodeClass()}>
       <div className={`mindmap-content ${levelClass} ${task.isCompleted ? 'completed' : ''}`}>
         {/* 粉末节点复选框 */}
-        {task.nodeLevel === NodeLevel.POWDER && (
+        {(task.nodeLevel ?? 0) === NodeLevel.POWDER && (
           <div
             className={`mindmap-checkbox ${task.isCompleted ? 'checked' : ''}`}
             onClick={(e) => {
@@ -74,9 +75,9 @@ function TreeNode({ task, tasks, level, onAddChild, onDelete, onToggleComplete }
         )}
 
         {/* 层级标签 - 非根节点显示 */}
-        {level > 0 && task.nodeLevel !== NodeLevel.POWDER && (
+        {level > 0 && (task.nodeLevel ?? 0) !== NodeLevel.POWDER && (
           <span className={`mindmap-label ${levelClass}-label`}>
-            {getLevelName(task.nodeLevel)}
+            {getLevelName(task.nodeLevel ?? null)}
           </span>
         )}
 
@@ -85,7 +86,7 @@ function TreeNode({ task, tasks, level, onAddChild, onDelete, onToggleComplete }
 
         {/* 操作按钮 */}
         <div className="mindmap-actions">
-          {(task.nodeLevel === null || task.nodeLevel < NodeLevel.POWDER) && (
+          {(task.nodeLevel == null || (task.nodeLevel ?? 0) < NodeLevel.POWDER) && (
             <Button
               size="sm"
               variant="ghost"

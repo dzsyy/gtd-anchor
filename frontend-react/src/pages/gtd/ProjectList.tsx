@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { message } from 'antd'
 import { Plus, Folder, Trash2, Check, ChevronRight, Sparkles } from 'lucide-react'
@@ -50,34 +50,6 @@ function getLevelName(level: NodeLevel): string {
   }
 }
 
-// 将任务树转换为 Markdown
-function buildMarkdown(tasks: Task[], parentId: number | null, level: number): string {
-  const children = tasks.filter(t => t.parentId === parentId)
-  if (children.length === 0) return ''
-
-  const indent = '  '.repeat(level)
-  let md = ''
-
-  for (const task of children) {
-    const prefix = task.isCompleted ? 'x ' : '- '
-    const nodeLevel = task.nodeLevel
-
-    if (nodeLevel === 0) {
-      md += `# ${task.title}\n\n`
-    } else if (nodeLevel === 1) {
-      md += `## ${task.title}\n\n`
-    } else if (nodeLevel === 2) {
-      md += `### ${task.title}\n\n`
-    } else {
-      md += `${indent}${prefix} ${task.title}\n`
-    }
-
-    md += buildMarkdown(tasks, task.id, level + 1)
-  }
-
-  return md
-}
-
 // 获取所有子任务
 function getAllDescendants(tasks: Task[], parentId: number): Task[] {
   const children = tasks.filter(t => t.parentId === parentId)
@@ -96,7 +68,6 @@ export function ProjectList() {
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [selectedProject, setSelectedProject] = useState<Task | null>(null)
   const [guideMessage, setGuideMessage] = useState(GUIDE_MESSAGES[NodeLevel.ROOT])
-  const [isEditMode, setIsEditMode] = useState(false)
 
   // 对话框状态
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -128,12 +99,6 @@ export function ProjectList() {
       }
     }
   }, [searchParams, projects])
-
-  // 生成 Markdown
-  const markdown = useMemo(() => {
-    if (!selectedProject) return ''
-    return buildMarkdown(allProjectTasks, selectedProject.id!, 0)
-  }, [selectedProject, allProjectTasks])
 
   const handleAddProject = async () => {
     if (!newProjectTitle.trim()) return
@@ -367,15 +332,14 @@ export function ProjectList() {
     return (
       <div className={level > 0 ? `ml-4 mt-2` : ''}>
         {children.map(task => {
-          const childCount = getChildCount(task.id!)
-          const progress = task.nodeLevel === NodeLevel.POWDER
+          const progress = (task.nodeLevel ?? 0) === NodeLevel.POWDER
             ? null
             : getProgress(task.id!)
 
           return (
             <div key={task.id} className="mb-2">
               <div className={`flex items-center gap-2 p-2 rounded border ${task.isCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
-                {task.nodeLevel === NodeLevel.POWDER && (
+                {(task.nodeLevel ?? 0) === NodeLevel.POWDER && (
                   <button
                     onClick={() => handleToggleComplete(task.id!)}
                     className={`w-5 h-5 rounded border flex items-center justify-center ${
@@ -392,7 +356,7 @@ export function ProjectList() {
                   <span className="text-xs text-gray-400">{progress.completed}/{progress.total}</span>
                 )}
                 <div className="flex gap-1">
-                  {task.nodeLevel < NodeLevel.POWDER && (
+                  {(task.nodeLevel ?? 0) < NodeLevel.POWDER && (
                     <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => handleAddChild(task.id!)}>
                       <Plus className="h-3 w-3" />
                     </Button>

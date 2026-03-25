@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { CheckCircle, FolderKanban } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
@@ -11,7 +11,7 @@ interface TaskWithSource extends Task {
 }
 
 export function NextActions() {
-  const { fetchTasksByStatus, updateTask, deleteTask } = useTaskStore()
+  const { fetchTasksByStatus, updateTask } = useTaskStore()
   const [tasks, setTasks] = useState<TaskWithSource[]>([])
   const [projects, setProjects] = useState<Task[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | 'all'>('all')
@@ -161,21 +161,6 @@ export function NextActions() {
     }
     return descendants
   }
-
-  // 获取各分组的任务数量
-  const groupCounts = useMemo(() => {
-    const counts: Record<string, number> = { 'all': tasks.length }
-
-    // 各项目数量
-    projects.forEach(p => {
-      const count = tasks.filter(t => t.projectName === p.title).length
-      if (count > 0) {
-        counts[p.id!] = count
-      }
-    })
-
-    return counts
-  }, [tasks, projects])
 
   return (
     <div>

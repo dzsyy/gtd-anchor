@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import {
   ReactFlow,
   Controls,
@@ -6,7 +6,6 @@ import {
   BackgroundVariant,
   ReactFlowProvider,
 } from '@xyflow/react'
-import type { Node, Edge, Connection } from '@xyflow/system'
 import '@xyflow/react/dist/style.css'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -122,9 +121,10 @@ const nodeTypes = {
 
 function MindmapFlowInner({ tasks, selectedProjectId, onAddChild, onDelete, onToggleComplete }: MindmapFlowProps) {
   // 构建节点和边
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { initialNodes, initialEdges } = useMemo(() => {
-    const nodes: Node[] = []
-    const edges: Edge[] = []
+    const nodes: any[] = []
+    const edges: any[] = []
 
     const rootTask = tasks.find(t => t.id === selectedProjectId)
     if (!rootTask) return { initialNodes: [], initialEdges: [] }
@@ -185,7 +185,6 @@ function MindmapFlowInner({ tasks, selectedProjectId, onAddChild, onDelete, onTo
       } else if (level === 2) {
         // 模块下的粉末从下边展开
         const xGap = 120
-        const totalWidth = children.length * xGap
         let startX = parentX
 
         children.forEach((child, index) => {
@@ -220,8 +219,10 @@ function MindmapFlowInner({ tasks, selectedProjectId, onAddChild, onDelete, onTo
     return { initialNodes: nodes, initialEdges: edges }
   }, [tasks, selectedProjectId, onAddChild, onDelete, onToggleComplete])
 
-  const [nodes, setNodes] = useState<Node[]>(initialNodes)
-  const [edges, setEdges] = useState<Edge[]>(initialEdges)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [nodes, setNodes] = useState<any[]>(initialNodes)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [edges, setEdges] = useState<any[]>(initialEdges)
 
   // 当tasks变化时更新节点
   useEffect(() => {
