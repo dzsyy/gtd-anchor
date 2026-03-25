@@ -30,12 +30,12 @@ export function Trash() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">回收箱</h2>
-      <p className="text-gray-500 mb-6">已删除的任务，可以恢复或彻底删除</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">回收箱</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">已删除的任务，可以恢复或彻底删除</p>
 
       <Card>
-        <ScrollArea className="h-[calc(100vh-220px)]">
+        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-220px)]">
           <CardContent className="p-4">
             {tasks.length === 0 ? (
               <div className="text-center py-12 text-gray-400">

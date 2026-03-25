@@ -20,6 +20,7 @@ public class TaskDTO {
     // 碎碎锚扩展字段
     private Integer nodeLevel;
     private Boolean isCompleted;
+    private Boolean isSubmitted;
     private LocalDateTime completedTime;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -63,6 +64,9 @@ public class TaskDTO {
 
     public Boolean getIsCompleted() { return isCompleted; }
     public void setIsCompleted(Boolean isCompleted) { this.isCompleted = isCompleted; }
+
+    public Boolean getIsSubmitted() { return isSubmitted; }
+    public void setIsSubmitted(Boolean isSubmitted) { this.isSubmitted = isSubmitted; }
 
     public LocalDateTime getCompletedTime() { return completedTime; }
     public void setCompletedTime(LocalDateTime completedTime) { this.completedTime = completedTime; }

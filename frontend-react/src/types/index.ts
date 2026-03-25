@@ -5,7 +5,8 @@ export const TaskStatus = {
   CONTEXT: 'CONTEXT',
   SOMEDAY: 'SOMEDAY',
   TRASH: 'TRASH',
-  DONE: 'DONE'
+  DONE: 'DONE',
+  ARCHIVED: 'ARCHIVED'
 } as const
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus]
@@ -43,6 +44,7 @@ export interface Task {
   // 碎碎锚扩展字段
   nodeLevel?: NodeLevel | null    // 节点层级 0-3
   isCompleted?: boolean | null      // 是否完成（仅粉末节点可标记）
+  isSubmitted?: boolean | null      // 是否已提交到执行清单
   completedTime?: string | null     // 完成时间
   createdAt?: string
   updatedAt?: string

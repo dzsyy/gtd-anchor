@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { message } from 'antd'
 import { Plus, Folder, Trash2, Check, ChevronRight, Sparkles } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
@@ -89,6 +90,7 @@ function getAllDescendants(tasks: Task[], parentId: number): Task[] {
 
 export function ProjectList() {
   const { fetchTasksByStatus, createTask, updateTask, deleteTask } = useTaskStore()
+  const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState<Task[]>([])
   const [allProjectTasks, setAllProjectTasks] = useState<Task[]>([])
   const [newProjectTitle, setNewProjectTitle] = useState('')
@@ -103,14 +105,29 @@ export function ProjectList() {
 
   const loadProjects = async () => {
     const data = await fetchTasksByStatus(TaskStatus.PROJECT)
-    const rootTasks = data.filter(t => !t.parentId)
+    // 只显示根节点、里程碑、模块，用于项目列表显示
+    const nonPowderTasks = data.filter(t => t.nodeLevel !== NodeLevel.POWDER)
+    // 只显示 isProject=true 的根节点（真正的项目）
+    const rootTasks = nonPowderTasks.filter(t => t.isProject === true && (t.nodeLevel === NodeLevel.ROOT || t.nodeLevel === null))
     setProjects(rootTasks)
+    // 保留所有任务（包括粉末节点），用于选择项目后的详情显示
     setAllProjectTasks(data)
   }
 
   useEffect(() => {
     loadProjects()
   }, [])
+
+  // 处理 URL 中的 projectId 参数，自动选中项目
+  useEffect(() => {
+    const projectId = searchParams.get('projectId')
+    if (projectId && projects.length > 0) {
+      const targetProject = projects.find(p => p.id === Number(projectId))
+      if (targetProject) {
+        selectProject(targetProject)
+      }
+    }
+  }, [searchParams, projects])
 
   // 生成 Markdown
   const markdown = useMemo(() => {
@@ -141,6 +158,7 @@ export function ProjectList() {
     setSelectedProject(project)
     setGuideMessage(GUIDE_MESSAGES[NodeLevel.MILESTONE])
     const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    // 保留所有任务（包括粉末节点）
     setAllProjectTasks(allTasks)
   }
 
@@ -281,6 +299,16 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
+  // 提交到执行清单
+  const handleSubmitToExecute = async (taskId: number) => {
+    await updateTask(taskId, {
+      isSubmitted: true,
+    })
+    // 刷新列表
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
   const handleToggleComplete = async (taskId: number) => {
     const task = allProjectTasks.find(t => t.id === taskId)
     if (!task) return
@@ -383,10 +411,10 @@ export function ProjectList() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-4">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] md:h-[calc(100vh-120px)] gap-4">
       {/* 左侧项目列表 */}
       <div className="w-64 flex-shrink-0">
-        <h2 className="text-2xl font-bold mb-2">项目清单</h2>
+        <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">项目清单</h2>
         <p className="text-gray-500 mb-4 text-sm">粉末化任务拆解</p>
 
         <div className="flex gap-2 mb-4">
@@ -402,7 +430,7 @@ export function ProjectList() {
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-280px)]">
+        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
           <div className="space-y-2">
             {projects.map((project) => {
               const progress = getProgress(project.id!)
@@ -504,7 +532,7 @@ export function ProjectList() {
             <ChevronRight className="h-4 w-4" />
             今日可执行
           </h3>
-          <ScrollArea className="h-[calc(100vh-280px)]">
+          <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
             <div className="space-y-2">
               {allProjectTasks
                 .filter(t => t.parentId === selectedProject.id)
@@ -526,13 +554,23 @@ export function ProjectList() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">{task.title}</span>
-                        <Button
-                          size="sm"
-                          className="h-7 bg-amber-500 hover:bg-amber-600"
-                          onClick={() => handleToggleComplete(task.id!)}
-                        >
-                          <Check className="h-3 w-3 mr-1" />完成
-                        </Button>
+                        {task.isSubmitted ? (
+                          <Button
+                            size="sm"
+                            disabled
+                            className="h-7 bg-green-500"
+                          >
+                            已提交
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-7 bg-amber-500 hover:bg-amber-600"
+                            onClick={() => handleSubmitToExecute(task.id!)}
+                          >
+                            提交
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

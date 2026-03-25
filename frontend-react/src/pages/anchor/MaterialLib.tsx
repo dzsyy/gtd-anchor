@@ -33,9 +33,9 @@ export function MaterialLib() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">灵感投喂库</h2>
-      <p className="text-gray-500 mb-6">收藏对你有启发的文章、视频、素材</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">灵感投喂库</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">收藏对你有启发的文章、视频、素材</p>
 
       <Card className="mb-6">
         <CardContent className="p-4 space-y-3">
@@ -61,7 +61,7 @@ export function MaterialLib() {
         </CardContent>
       </Card>
 
-      <ScrollArea className="h-[calc(100vh-380px)]">
+      <ScrollArea className="h-[calc(100vh-280px)] md:h-[calc(100vh-380px)]">
         <div className="grid md:grid-cols-2 gap-4">
           {materials.map((item) => (
             <Card key={item.id}>

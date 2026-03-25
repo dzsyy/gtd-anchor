@@ -48,9 +48,9 @@ export function AchievementBox() {
   }, {} as Record<string, typeof achievements>)
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">成果收集箱</h2>
-      <p className="text-gray-500 mb-6">{GENTLE_MESSAGE}</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">成果收集箱</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">{GENTLE_MESSAGE}</p>
 
       <div className="bg-primary/10 rounded-lg p-4 mb-6 text-center">
         <div className="text-3xl font-bold text-primary">{todayAchievementCount}</div>
@@ -79,7 +79,7 @@ export function AchievementBox() {
         </div>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-420px)]">
+      <ScrollArea className="h-[calc(100vh-220px)] md:h-[calc(100vh-320px)] md:h-[calc(100vh-420px)]">
         <div className="space-y-4">
           {Object.entries(groupedByTag).map(([tag, items]) => (
             <div key={tag}>

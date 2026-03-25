@@ -7,5 +7,6 @@ public enum TaskStatus {
     CONTEXT,    // 执行清单
     SOMEDAY,   // 可能清单
     TRASH,      // 回收箱
-    DONE        // 已完成
+    DONE,        // 已完成
+    ARCHIVED    // 归档
 }

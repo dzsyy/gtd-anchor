@@ -7,7 +7,7 @@ import { WaitingList } from '@/pages/gtd/WaitingList'
 import { SomedayList } from '@/pages/gtd/SomedayList'
 import { Reference } from '@/pages/gtd/Reference'
 import { Trash } from '@/pages/gtd/Trash'
-import { Calendar } from '@/pages/gtd/Calendar'
+import { Archive } from '@/pages/gtd/Archive'
 import { Pomodoro } from '@/pages/gtd/Pomodoro'
 import { MindMap } from '@/pages/gtd/MindMap'
 import { Home } from '@/pages/anchor/Home'
@@ -31,7 +31,7 @@ const router = createBrowserRouter([
       { path: 'someday', element: <SomedayList /> },
       { path: 'reference', element: <Reference /> },
       { path: 'trash', element: <Trash /> },
-      { path: 'calendar', element: <Calendar /> },
+      { path: 'archive', element: <Archive /> },
       { path: 'pomodoro', element: <Pomodoro /> },
       { path: 'mindmap', element: <MindMap /> },
       { path: 'anchor', element: <Home /> },

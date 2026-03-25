@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { Inspiration, Achievement, SkillParticle, Material } from '@/types'
-import { inspirationApi, achievementApi, skillParticleApi, materialApi } from '@/api'
+import type { Inspiration, Achievement, SkillParticle, Material, Task } from '@/types'
+import { inspirationApi, achievementApi, skillParticleApi, materialApi, taskApi } from '@/api'
 
 interface AnchorState {
   inspirations: Inspiration[]
@@ -23,6 +23,7 @@ interface AnchorState {
   deleteSkill: (id: number) => Promise<void>
   deleteMaterial: (id: number) => Promise<void>
   masterSkill: (id: number) => Promise<void>
+  inspirationToProject: (inspiration: Inspiration) => Promise<Task>
 }
 
 export const useAnchorStore = create<AnchorState>((set, get) => ({
@@ -103,5 +104,16 @@ export const useAnchorStore = create<AnchorState>((set, get) => ({
   masterSkill: async (id) => {
     await skillParticleApi.master(id)
     await get().fetchSkills()
+  },
+  // 将灵感转为项目（GTD流程）
+  inspirationToProject: async (inspiration: Inspiration): Promise<Task> => {
+    const task: Partial<Task> = {
+      title: inspiration.content,
+      status: 'PROJECT',
+      isProject: true,
+      nodeLevel: 0, // ROOT 层级
+    }
+    const res = await taskApi.create(task)
+    return res.data
   },
 }))

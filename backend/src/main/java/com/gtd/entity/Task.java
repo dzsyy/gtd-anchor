@@ -48,6 +48,9 @@ public class Task {
     @Column(name = "is_completed")
     private Boolean isCompleted = false;  // 是否完成（仅粉末节点可标记）
 
+    @Column(name = "is_submitted")
+    private Boolean isSubmitted = false;  // 是否已提交到执行清单
+
     @Column(name = "completed_time")
     private LocalDateTime completedTime;  // 完成时间
 
@@ -98,6 +101,9 @@ public class Task {
 
     public Boolean getIsCompleted() { return isCompleted; }
     public void setIsCompleted(Boolean isCompleted) { this.isCompleted = isCompleted; }
+
+    public Boolean getIsSubmitted() { return isSubmitted; }
+    public void setIsSubmitted(Boolean isSubmitted) { this.isSubmitted = isSubmitted; }
 
     public LocalDateTime getCompletedTime() { return completedTime; }
     public void setCompletedTime(LocalDateTime completedTime) { this.completedTime = completedTime; }

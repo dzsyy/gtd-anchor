@@ -52,9 +52,9 @@ export function SkillPuzzle() {
   const unmastered = skills.filter((s) => !s.isMastered)
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">技能拼图</h2>
-      <p className="text-gray-500 mb-6">{GENTLE_MESSAGE}</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">技能拼图</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">{GENTLE_MESSAGE}</p>
 
       <div className="flex gap-2 mb-6">
         <Input
@@ -89,7 +89,7 @@ export function SkillPuzzle() {
             <Puzzle className="h-4 w-4" />
             待掌握 ({unmastered.length})
           </h3>
-          <ScrollArea className="h-[calc(100vh-320px)]">
+          <ScrollArea className="h-[calc(100vh-220px)] md:h-[calc(100vh-320px)]">
             <div className="space-y-2">
               {unmastered.map((skill) => (
                 <Card key={skill.id}>
@@ -131,7 +131,7 @@ export function SkillPuzzle() {
             <Check className="h-4 w-4 text-green-500" />
             已掌握 ({mastered.length})
           </h3>
-          <ScrollArea className="h-[calc(100vh-320px)]">
+          <ScrollArea className="h-[calc(100vh-220px)] md:h-[calc(100vh-320px)]">
             <div className="space-y-2">
               {mastered.map((skill) => (
                 <Card key={skill.id} className="bg-green-50">

@@ -38,7 +38,7 @@ export function EmotionCave() {
         <Heart className="h-6 w-6 text-pink-500" />
         情绪树洞
       </h2>
-      <p className="text-gray-500 mb-6">{GENTLE_MESSAGE}</p>
+      <p className="text-gray-500 mb-3 md:mb-6">{GENTLE_MESSAGE}</p>
 
       <Card className="bg-pink-50 border-pink-200 mb-6">
         <CardContent className="p-4 space-y-4">
@@ -56,7 +56,7 @@ export function EmotionCave() {
         </CardContent>
       </Card>
 
-      <ScrollArea className="h-[calc(100vh-380px)]">
+      <ScrollArea className="h-[calc(100vh-280px)] md:h-[calc(100vh-380px)]">
         <div className="space-y-3">
           {emotions.map((item) => (
             <Card key={item.id} className="bg-white">

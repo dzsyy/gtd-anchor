@@ -98,7 +98,7 @@ export function MindMap() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-4">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] md:h-[calc(100vh-120px)] gap-4">
       {/* 左侧：Markdown 编辑器 */}
       <div className="w-1/2 flex flex-col">
         <div className="flex items-center justify-between mb-2">
@@ -135,7 +135,7 @@ export function MindMap() {
           <FileText className="h-4 w-4" />
           已保存
         </h3>
-        <ScrollArea className="h-[calc(100vh-200px)]">
+        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)]">
           <div className="space-y-2">
             {savedMaps.length === 0 ? (
               <div className="text-center py-8 text-gray-400 text-sm">

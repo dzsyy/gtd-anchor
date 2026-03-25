@@ -51,9 +51,9 @@ export function Home() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">锚点首页</h2>
-      <p className="text-gray-500 mb-6">{GENTLE_MESSAGES.home}</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">锚点首页</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">{GENTLE_MESSAGES.home}</p>
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card>

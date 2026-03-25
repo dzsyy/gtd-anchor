@@ -102,6 +102,9 @@ public class TaskService {
                 task.setCompletedTime(null);
             }
         }
+        if (taskDTO.getIsSubmitted() != null) {
+            task.setIsSubmitted(taskDTO.getIsSubmitted());
+        }
 
         Task updated = taskRepository.save(task);
         return toDTO(updated);
@@ -185,6 +188,7 @@ public class TaskService {
         // 碎碎锚扩展字段
         dto.setNodeLevel(task.getNodeLevel());
         dto.setIsCompleted(task.getIsCompleted());
+        dto.setIsSubmitted(task.getIsSubmitted());
         dto.setCompletedTime(task.getCompletedTime());
         dto.setCreatedAt(task.getCreatedAt());
         dto.setUpdatedAt(task.getUpdatedAt());

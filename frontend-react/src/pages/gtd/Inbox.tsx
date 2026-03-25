@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, MoreVertical, Trash2, ArrowRight, Clock, Check, Folder } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, ArrowRight, Clock, Check } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
-import { TaskStatus, type Task } from '@/types'
+import { TaskStatus, NodeLevel, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,13 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function Inbox() {
@@ -34,7 +27,6 @@ export function Inbox() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [step, setStep] = useState(1)
   const [waitingFor, setWaitingFor] = useState('')
-  const [contextTag, setContextTag] = useState('')
 
   useEffect(() => {
     loadTasks()
@@ -56,7 +48,6 @@ export function Inbox() {
     setSelectedTask(task)
     setStep(1)
     setWaitingFor('')
-    setContextTag('')
     setProcessDialog(true)
   }
 
@@ -67,8 +58,14 @@ export function Inbox() {
       title: selectedTask.title,
       status
     }
-    if (isProject) updateData.isProject = true
-    if (contextTag) updateData.contextTag = contextTag
+    if (isProject) {
+      updateData.isProject = true
+      updateData.nodeLevel = NodeLevel.ROOT
+    }
+    // 进入执行清单的任务需要设置 isSubmitted=true
+    if (status === TaskStatus.PROJECT) {
+      updateData.isSubmitted = true
+    }
     if (waitingFor) updateData.waitingFor = waitingFor
 
     await updateTask(selectedTask.id, updateData)
@@ -121,9 +118,9 @@ export function Inbox() {
         return (
           <div className="space-y-4">
             <div className="text-lg font-medium text-center py-4">该我做吗？等别人？</div>
-            <div className="flex gap-2">
-              <Button onClick={() => setStep(6)} className="flex-1"><Clock className="mr-2 h-4 w-4" />等待</Button>
-              <Button variant="outline" onClick={() => setStep(7)} className="flex-1"><Folder className="mr-2 h-4 w-4" />下一步</Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => executeAction(TaskStatus.PROJECT)} className="flex-1">该我做 → 执行</Button>
+              <Button variant="outline" onClick={() => setStep(6)} className="flex-1"><Clock className="mr-2 h-4 w-4" />等待</Button>
             </div>
           </div>
         )
@@ -150,33 +147,15 @@ export function Inbox() {
             <Button onClick={() => executeAction(TaskStatus.WAITING)} className="w-full">确认等待</Button>
           </div>
         )
-      case 7: // 下一步行动
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">选择上下文</div>
-            <Select value={contextTag} onValueChange={(v) => { setContextTag(v); executeAction(TaskStatus.PROJECT); }}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择 @上下文" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="@电脑">@电脑</SelectItem>
-                <SelectItem value="@手机">@手机</SelectItem>
-                <SelectItem value="@外出">@外出</SelectItem>
-                <SelectItem value="@办公室">@办公室</SelectItem>
-                <SelectItem value="@家里">@家里</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )
       default:
         return null
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">收集箱</h2>
-      <p className="text-gray-500 mb-6">快速收集任务想法，稍后处理</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">收集箱</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">快速收集任务想法，稍后处理</p>
 
       <div className="flex gap-2 mb-6">
         <Input
@@ -192,7 +171,7 @@ export function Inbox() {
       </div>
 
       <Card>
-        <ScrollArea className="h-[calc(100vh-280px)]">
+        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
           <CardContent className="p-4">
             {inboxTasks.length === 0 ? (
               <div className="text-center py-12 text-gray-400">收集箱是空的，添加一些任务吧</div>

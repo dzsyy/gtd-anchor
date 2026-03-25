@@ -52,7 +52,7 @@ export function BedtimeLamp() {
         <Moon className="h-6 w-6 text-indigo-500" />
         睡前小台灯
       </h2>
-      <p className="text-gray-500 mb-6">{GENTLE_MESSAGE}</p>
+      <p className="text-gray-500 mb-3 md:mb-6">{GENTLE_MESSAGE}</p>
 
       <div className="grid gap-6">
         <Card className="bg-indigo-50 border-indigo-200">

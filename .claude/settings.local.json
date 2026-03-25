@@ -1,7 +1,28 @@
 {
   "permissions": {
     "allow": [
-      "Bash(unzip -o GTD.xmind -d /tmp/gtd_xmind)"
+      "Bash(unzip -o GTD.xmind -d /tmp/gtd_xmind)",
+      "Bash(unzip -o /Users/xurui/Documents/schedule/gtd/oh-my-claudecode-main.zip)",
+      "Bash(unzip -o /Users/xurui/Documents/schedule/gtd/superpowers-main.zip)",
+      "Bash(unzip -o /Users/xurui/Documents/schedule/gtd/lisa-main.zip)",
+      "Bash(unzip -o /Users/xurui/Documents/schedule/gtd/claude-reflect-main.zip)",
+      "Bash(unzip -o /Users/xurui/Documents/schedule/gtd/get-shit-done-multi-main.zip)",
+      "Bash(ln -sf ~/.claude/skills/claude-reflect-main/commands ~/.claude/commands/claude-reflect)",
+      "Bash(mkdir -p ~/.claude/commands)",
+      "Bash(node bin/install.js)",
+      "Bash(npx get-shit-done-cc@latest)",
+      "Bash(grep -v \"^gstack$\")",
+      "Bash(grep -v \"^agent-browser$\")",
+      "Bash(grep -v \"^find-skills$\")",
+      "Bash(grep -v \"^java-performance$\")",
+      "Bash(grep -v \"^remotion-best-practices$\")",
+      "Bash(grep -v \"^self-improving-agent$\")",
+      "Bash(grep -v \"^tavily-search$\")",
+      "Bash(grep -v \"^text-summarizer$\")",
+      "Read(//Users/xurui/Documents/schedule/gtd/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/xurui/.claude"
     ]
   }
 }

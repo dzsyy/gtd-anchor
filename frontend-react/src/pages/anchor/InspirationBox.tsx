@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, FolderKanban } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAnchorStore } from '@/store/anchorStore'
-import { InspirationTag } from '@/types'
+import { useTaskStore } from '@/store/taskStore'
+import { InspirationTag, type Inspiration } from '@/types'
+import { message } from 'antd'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,12 +19,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function InspirationBox() {
+  const navigate = useNavigate()
   const {
     inspirations,
     fetchInspirations,
     createInspiration,
     deleteInspiration,
+    inspirationToProject,
   } = useAnchorStore()
+  const { fetchAllTasks } = useTaskStore()
   const [newContent, setNewContent] = useState('')
   const [newTag, setNewTag] = useState<InspirationTag>(InspirationTag.FIVE_MIN)
   const [filterTag, setFilterTag] = useState<string>('all')
@@ -43,6 +49,15 @@ export function InspirationBox() {
     await deleteInspiration(id)
   }
 
+  // 将灵感转为项目，并跳转到项目列表（思维导图）
+  const handleToProject = async (inspiration: Inspiration) => {
+    const task = await inspirationToProject(inspiration)
+    await fetchAllTasks()
+    message.success('已转为项目，开始拆解吧 ✨')
+    // 跳转到项目列表页面，并选中刚创建的项目
+    navigate(`/projects?projectId=${task.id}`)
+  }
+
   const filteredInspirations = filterTag === 'all'
     ? inspirations
     : inspirations.filter((i) => i.tag === filterTag)
@@ -55,9 +70,9 @@ export function InspirationBox() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">灵感信箱</h2>
-      <p className="text-gray-500 mb-6">你的灵感收集箱</p>
+    <div>
+      <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">灵感信箱</h2>
+      <p className="text-gray-500 mb-3 md:mb-6">你的灵感收集箱</p>
 
       <div className="flex gap-2 mb-6">
         <Textarea
@@ -96,7 +111,7 @@ export function InspirationBox() {
         </TabsList>
 
         <TabsContent value="all">
-          <ScrollArea className="h-[calc(100vh-340px)]">
+          <ScrollArea className="h-[calc(100vh-240px)] md:h-[calc(100vh-340px)]">
             <div className="space-y-4">
               {Object.entries(groupedByTag).map(([tag, items]) =>
                 items.length > 0 ? (
@@ -107,6 +122,15 @@ export function InspirationBox() {
                         <Card key={item.id}>
                           <CardContent className="p-3 flex items-start gap-3">
                             <span className="flex-1 text-sm">{item.content}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-blue-400 hover:text-blue-500"
+                              onClick={() => handleToProject(item)}
+                              title="转为项目"
+                            >
+                              <FolderKanban className="h-3 w-3" />
+                            </Button>
                             <Button
                               size="icon"
                               variant="ghost"

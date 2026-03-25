@@ -4,10 +4,8 @@ import {
   FolderKanban,
   Clock,
   Tag,
-  Calendar,
-  FileText,
+  Sparkles,
   Trash2,
-  Timer,
   Home,
   Lightbulb,
   Trophy,
@@ -15,7 +13,7 @@ import {
   Heart,
   Library,
   Moon,
-  Network
+  Archive
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -25,14 +23,11 @@ const menuGroups = [
     items: [
       { path: '/inbox', label: '收集箱', icon: Inbox },
       { path: '/projects', label: '项目清单', icon: FolderKanban },
-      { path: '/next-actions', label: '下一步行动', icon: Tag },
+      { path: '/next-actions', label: '执行清单', icon: Tag },
       { path: '/waiting', label: '等待清单', icon: Clock },
-      { path: '/someday', label: '可能清单', icon: Calendar },
-      { path: '/reference', label: '参考资料', icon: FileText },
+      { path: '/someday', label: '可能清单', icon: Sparkles },
       { path: '/trash', label: '回收箱', icon: Trash2 },
-      { path: '/calendar', label: '日历', icon: Calendar },
-      { path: '/pomodoro', label: '番茄钟', icon: Timer },
-      { path: '/mindmap', label: '思维导图', icon: Network },
+      { path: '/archive', label: '归档', icon: Archive },
     ],
   },
   {
@@ -94,8 +89,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                           )
                         }
                       >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
+                        <item.icon className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{item.label}</span>
                       </NavLink>
                     </li>
                   ))}
