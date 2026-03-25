@@ -98,10 +98,19 @@
       "Bash(sed -i '' 's/h-\\\\[calc\\(100vh-420px\\)\\\\]/h-[calc\\(100vh-320px\\)] md:h-[calc\\(100vh-420px\\)]/g' \"$f\")",
       "Bash(sed -i '' 's/h-\\\\[calc\\(100vh-380px\\)\\\\]/h-[calc\\(100vh-280px\\)] md:h-[calc\\(100vh-380px\\)]/g' \"$f\")",
       "Bash(sed -i '' 's/h-\\\\[calc\\(100vh-340px\\)\\\\]/h-[calc\\(100vh-240px\\)] md:h-[calc\\(100vh-340px\\)]/g' \"$f\")",
-      "Bash(sed -i '' 's/h-\\\\[calc\\(100vh-320px\\)\\\\]/h-[calc\\(100vh-220px\\)] md:h-[calc\\(100vh-320px\\)]/g' \"$f\")"
+      "Bash(sed -i '' 's/h-\\\\[calc\\(100vh-320px\\)\\\\]/h-[calc\\(100vh-220px\\)] md:h-[calc\\(100vh-320px\\)]/g' \"$f\")",
+      "Edit(~/.claude/skills/gtd-builder/**)",
+      "Bash(rm -rf /Users/xurui/Documents/schedule/gtd/deploy-package/frontend/*)",
+      "Bash(cp -r /Users/xurui/Documents/schedule/gtd/frontend-react/dist/* /Users/xurui/Documents/schedule/gtd/deploy-package/frontend/)",
+      "Bash(mvn package:*)",
+      "Bash(python3 -m http.server 5174)",
+      "Bash(open /Users/xurui/.agent-browser/tmp/screenshots/screenshot-1774443355274.png)",
+      "Bash(pkill -f \"python3 -m http.server 5174\")",
+      "mcp__drawio__get_diagram"
     ],
     "additionalDirectories": [
-      "/Users/xurui/Documents/schedule/gtd/frontend-react/src/pages/gtd"
+      "/Users/xurui/Documents/schedule/gtd/frontend-react/src/pages/gtd",
+      "/Users/xurui/.claude/skills"
     ]
   }
 }
