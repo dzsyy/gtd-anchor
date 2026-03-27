@@ -16,6 +16,7 @@ export const taskApi = {
   process: (data: { id: number; targetStatus: string; nextAction?: boolean; contextId?: number }) =>
     api.post<Task>('/tasks/process', data),
   getSubTasks: (id: number) => api.get<Task[]>(`/tasks/${id}/subtasks`),
+  batchUpdate: (tasks: Partial<Task>[]) => api.put<Task[]>('/tasks/batch', tasks),
 }
 
 // Inspiration APIs

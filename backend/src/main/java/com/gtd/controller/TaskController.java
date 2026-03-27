@@ -72,4 +72,10 @@ public class TaskController {
     public ResponseEntity<List<TaskDTO>> getSubTasks(@PathVariable Long id) {
         return ResponseEntity.ok(taskService.getSubTasks(id));
     }
+
+    // 批量更新任务
+    @PutMapping("/batch")
+    public ResponseEntity<List<TaskDTO>> batchUpdateTasks(@RequestBody List<TaskDTO> tasks) {
+        return ResponseEntity.ok(taskService.batchUpdateTasks(tasks));
+    }
 }

@@ -9,10 +9,6 @@ import {
   Home,
   Lightbulb,
   Trophy,
-  Puzzle,
-  Heart,
-  Library,
-  Moon,
   Archive
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,8 +18,8 @@ const menuGroups = [
     title: 'GTD 时间管理',
     items: [
       { path: '/inbox', label: '收集箱', icon: Inbox },
-      { path: '/projects', label: '项目清单', icon: FolderKanban },
       { path: '/next-actions', label: '执行清单', icon: Tag },
+      { path: '/projects', label: '项目清单', icon: FolderKanban },
       { path: '/waiting', label: '等待清单', icon: Clock },
       { path: '/someday', label: '可能清单', icon: Sparkles },
       { path: '/trash', label: '回收箱', icon: Trash2 },
@@ -36,10 +32,6 @@ const menuGroups = [
       { path: '/anchor', label: '灵感捕捉', icon: Home },
       { path: '/inspirations', label: '灵感信箱', icon: Lightbulb },
       { path: '/achievements', label: '成果箱', icon: Trophy },
-      { path: '/skills', label: '技能拼图', icon: Puzzle },
-      { path: '/emotion', label: '情绪树洞', icon: Heart },
-      { path: '/materials', label: '投喂库', icon: Library },
-      { path: '/bedtime', label: '睡前仪式', icon: Moon },
     ],
   },
 ]

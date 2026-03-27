@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, FolderKanban, ChevronLeft, Search } from 'lucide-react'
+import { RotateCcw, FolderKanban, ChevronLeft, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,8 @@ export function Archive() {
   const [allArchivedTasks, setAllArchivedTasks] = useState<Task[]>([])
   const [allProjectTasks, setAllProjectTasks] = useState<Task[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [isAllExpanded, setIsAllExpanded] = useState(false)
+  const INITIAL_DISPLAY_COUNT = 10
 
   useEffect(() => {
     loadData()
@@ -182,25 +184,49 @@ export function Archive() {
         return timeB - timeA
       })
 
+    // 分页显示
+    const displayTasks = isAllExpanded ? allTasks : allTasks.slice(0, INITIAL_DISPLAY_COUNT)
+    const hasMore = allTasks.length > INITIAL_DISPLAY_COUNT
+
     return (
       <div className="space-y-2">
         {allTasks.length === 0 ? (
           <div className="text-center py-12 text-gray-400">暂无归档任务</div>
         ) : (
-          allTasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group">
-              {task.projectName && (
-                <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded">{task.projectName}</span>
-              )}
-              <span className="flex-1 line-through text-gray-400">{task.title}</span>
-              <span className="text-xs text-gray-400">
-                {task.completedTime ? new Date(task.completedTime).toLocaleDateString() : ''}
-              </span>
-              <Button size="sm" variant="outline" onClick={() => task.id && handleRestore(task.id)} className="opacity-0 group-hover:opacity-100">
-                <RotateCcw className="h-3 w-3 mr-1" />恢复
+          <div>
+            {displayTasks.map((task) => (
+              <div key={task.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group">
+                {task.projectName && (
+                  <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded">{task.projectName}</span>
+                )}
+                <span className="flex-1 line-through text-gray-400">{task.title}</span>
+                <span className="text-xs text-gray-400">
+                  {task.completedTime ? new Date(task.completedTime).toLocaleDateString() : ''}
+                </span>
+                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); task.id && handleRestore(task.id) }} className="opacity-0 group-hover:opacity-100">
+                  <RotateCcw className="h-3 w-3 mr-1" />恢复
+                </Button>
+              </div>
+            ))}
+            {/* 查看更多按钮 */}
+            {hasMore && (
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() => setIsAllExpanded(!isAllExpanded)}
+              >
+                {isAllExpanded ? (
+                  <span className="flex items-center justify-center">
+                    收起 <ChevronUp className="h-4 w-4 ml-1" />
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center">
+                    查看更多 ({allTasks.length - INITIAL_DISPLAY_COUNT} 条) <ChevronDown className="h-4 w-4 ml-1" />
+                  </span>
+                )}
               </Button>
-            </div>
-          ))
+            )}
+          </div>
         )}
       </div>
     )

@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { message } from 'antd'
-import { Plus, Folder, Trash2, Check, ChevronRight, Sparkles } from 'lucide-react'
+import { message, Dropdown } from 'antd'
+import { Plus, Folder, Trash2, Check, ChevronRight, Sparkles, Download, FileJson, FileImage, FileText, RotateCcw, MoreVertical } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { MindmapElixir } from '@/components/MindmapElixir'
 import { TaskInputDialog } from '@/components/TaskInputDialog'
 
@@ -61,7 +67,7 @@ function getAllDescendants(tasks: Task[], parentId: number): Task[] {
 }
 
 export function ProjectList() {
-  const { fetchTasksByStatus, createTask, updateTask, deleteTask } = useTaskStore()
+  const { fetchTasksByStatus, createTask, updateTask, deleteTask, batchUpdateTasks } = useTaskStore()
   const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState<Task[]>([])
   const [allProjectTasks, setAllProjectTasks] = useState<Task[]>([])
@@ -264,11 +270,147 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
+  // 导出思维导图
+  const handleExport = async (type: 'json' | 'png' | 'markdown') => {
+    const projectTitle = selectedProject?.title || '思维导图'
+
+    if (type === 'json') {
+      // 导出 JSON - 从 mind-elixir 获取数据
+      // 通过 children 递归构建 mind-elixir 格式数据
+      const buildNodeData = (taskId: number): any => {
+        const task = allProjectTasks.find(t => t.id === taskId)
+        if (!task) return null
+        const children = allProjectTasks.filter(t => t.parentId === taskId)
+        const node: any = {
+          id: String(task.id),
+          topic: task.title,
+          expanded: true,
+        }
+        if (task.nodeLevel === NodeLevel.POWDER) {
+          node.style = {
+            background: task.isCompleted ? '#e5e7eb' : '#fef3c7',
+            color: task.isCompleted ? '#9ca3af' : '#b45309',
+          }
+        } else if (task.nodeLevel === NodeLevel.MODULE) {
+          node.style = { background: '#dcfce7', color: '#15803d' }
+        } else if (task.nodeLevel === NodeLevel.MILESTONE) {
+          node.style = { background: '#e0f2fe', color: '#0369a1' }
+        }
+        if (children.length > 0) {
+          node.children = children.map(c => buildNodeData(c.id!)).filter(Boolean)
+        }
+        return node
+      }
+
+      const rootData = buildNodeData(selectedProject!.id!)
+      if (rootData) {
+        const jsonStr = JSON.stringify({ nodeData: rootData }, null, 2)
+        const blob = new Blob([jsonStr], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${projectTitle}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+        message.success('JSON 导出成功')
+      }
+    } else if (type === 'png') {
+      // 导出 PNG - 使用 html2canvas 截图
+      try {
+        // 找到 mind-elixir 的画布容器
+        const container = document.querySelector('.mind-elixir') as HTMLElement
+        if (!container) {
+          message.error('未找到思维导图画布')
+          return
+        }
+
+        const html2canvas = (await import('html2canvas')).default
+        const canvas = await html2canvas(container, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+        })
+
+        const link = document.createElement('a')
+        link.href = canvas.toDataURL('image/png')
+        link.download = `${projectTitle}.png`
+        link.click()
+        message.success('PNG 导出成功')
+      } catch (err) {
+        console.error('PNG export error:', err)
+        message.error('PNG 导出失败')
+      }
+    } else if (type === 'markdown') {
+      // 导出 Markdown
+      const buildTree = (parentId: number, level: number = 0): string => {
+        const children = allProjectTasks.filter(t => t.parentId === parentId)
+        if (children.length === 0) return ''
+
+        let md = ''
+        children.forEach(task => {
+          const indent = '  '.repeat(level)
+          const checkbox = task.isCompleted ? '[x]' : '[ ]'
+          const levelIcon = task.nodeLevel === NodeLevel.POWDER ? '●' :
+                          task.nodeLevel === NodeLevel.MODULE ? '◆' :
+                          task.nodeLevel === NodeLevel.MILESTONE ? '■' : '★'
+          md += `${indent}- ${checkbox} ${levelIcon} ${task.title}\n`
+          md += buildTree(task.id!, level + 1)
+        })
+        return md
+      }
+
+      const md = `# ${projectTitle}\n\n${buildTree(selectedProject!.id!)}`
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${projectTitle}.md`
+      link.click()
+      URL.revokeObjectURL(url)
+      message.success('Markdown 导出成功')
+    }
+  }
+
   // 提交到执行清单
   const handleSubmitToExecute = async (taskId: number) => {
     await updateTask(taskId, {
       isSubmitted: true,
     })
+    // 刷新列表
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
+  // 一键提交所有未提交的粉末动作到执行清单
+  const handleSubmitAll = async () => {
+    if (!selectedProject) return
+
+    // 获取所有未提交的粉末动作
+    // 逻辑：找到所有 MODULE（层级2），它们的 parentId 是当前的里程碑
+    // 然后找到所有 POWDER（层级3），它们的 parentId 是这些 MODULE
+    const moduleIds = allProjectTasks
+      .filter(t => t.parentId === selectedProject.id && t.nodeLevel === NodeLevel.MILESTONE)
+      .flatMap(milestone =>
+        allProjectTasks.filter(t => t.parentId === milestone.id && t.nodeLevel === NodeLevel.MODULE).map(t => t.id)
+      )
+
+    const powderTasks = allProjectTasks.filter(t =>
+      moduleIds.includes(t.parentId!) &&
+      t.nodeLevel === NodeLevel.POWDER &&
+      !t.isCompleted &&
+      !t.isSubmitted
+    )
+
+    if (powderTasks.length === 0) {
+      message.info('没有可提交的粉末动作')
+      return
+    }
+
+    // 批量提交
+    const updates = powderTasks.map(task => ({ id: task.id, isSubmitted: true }))
+    await batchUpdateTasks(updates)
+
+    message.success(`已提交 ${powderTasks.length} 个粉末动作到执行清单`)
     // 刷新列表
     const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
     setAllProjectTasks(allTasks)
@@ -316,6 +458,31 @@ export function ProjectList() {
     loadProjects()
   }
 
+  // 打回收集箱（递归处理子节点）
+  const handleToInbox = async (id: number) => {
+    // 打回所有子节点
+    const descendants = getAllDescendants(allProjectTasks, id)
+    for (const desc of descendants) {
+      await updateTask(desc.id!, { status: TaskStatus.INBOX })
+    }
+    await updateTask(id, { status: TaskStatus.INBOX })
+
+    if (selectedProject?.id === id) {
+      setSelectedProject(null)
+    }
+    loadProjects()
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
+  // 打回单个节点到收集箱（不递归）
+  const handleToInboxSingle = async (id: number) => {
+    await updateTask(id, { status: TaskStatus.INBOX })
+    loadProjects()
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
   // 获取项目进度
   const getProgress = useCallback((projectId: number) => {
     const descendants = getAllDescendants(allProjectTasks, projectId)
@@ -361,6 +528,15 @@ export function ProjectList() {
                       <Plus className="h-3 w-3" />
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-1 text-gray-400 hover:text-amber-500"
+                    onClick={() => handleToInboxSingle(task.id!)}
+                    title="打回收集箱"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
                   <Button size="sm" variant="ghost" className="h-6 px-1 text-red-400" onClick={() => handleDeleteTask(task.id!)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -375,9 +551,9 @@ export function ProjectList() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] md:h-[calc(100vh-120px)] gap-4">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-100px)] lg:h-[calc(100vh-120px)] gap-2 lg:gap-3">
       {/* 左侧项目列表 */}
-      <div className="w-64 flex-shrink-0">
+      <div className="w-full lg:w-64 xl:w-72 flex-shrink-0 flex flex-col">
         <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">项目清单</h2>
         <p className="text-gray-500 mb-4 text-sm">粉末化任务拆解</p>
 
@@ -394,14 +570,14 @@ export function ProjectList() {
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
+        <ScrollArea className="h-[calc(100vh-180px)] md:h-[calc(100vh-240px)]">
           <div className="space-y-2">
             {projects.map((project) => {
               const progress = getProgress(project.id!)
               return (
                 <Card
                   key={project.id}
-                  className={`cursor-pointer transition-all ${
+                  className={`cursor-pointer transition-all group ${
                     selectedProject?.id === project.id
                       ? 'border-primary bg-primary/5'
                       : 'hover:border-gray-300'
@@ -417,6 +593,33 @@ export function ProjectList() {
                           {progress.completed}/{progress.total}
                         </span>
                       )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); handleToInbox(project.id!) }}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-2" />
+                            打回收集箱
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-500"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteProject(project.id!) }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-2" />
+                            删除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardContent>
                 </Card>
@@ -446,6 +649,32 @@ export function ProjectList() {
                 </span>
               </div>
               <div className="flex gap-2">
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: 'json',
+                        label: <span className="flex items-center gap-2"><FileJson className="h-4 w-4" />导出 JSON</span>,
+                        onClick: () => handleExport('json'),
+                      },
+                      {
+                        key: 'png',
+                        label: <span className="flex items-center gap-2"><FileImage className="h-4 w-4" />导出 PNG</span>,
+                        onClick: () => handleExport('png'),
+                      },
+                      {
+                        key: 'markdown',
+                        label: <span className="flex items-center gap-2"><FileText className="h-4 w-4" />导出 Markdown</span>,
+                        onClick: () => handleExport('markdown'),
+                      },
+                    ],
+                  }}
+                  trigger={['click']}
+                >
+                  <Button size="sm" variant="ghost">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </Dropdown>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -491,12 +720,22 @@ export function ProjectList() {
 
       {/* 右侧：今日可执行粉末动作 */}
       {selectedProject && (
-        <div className="w-72 flex-shrink-0 bg-white rounded-lg p-4">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <ChevronRight className="h-4 w-4" />
-            今日可执行
-          </h3>
-          <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
+        <div className="w-full lg:w-56 xl:w-64 flex-shrink-0 bg-white rounded-lg p-3 lg:p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <ChevronRight className="h-4 w-4" />
+              今日可执行
+            </h3>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-amber-600 border-amber-300 hover:bg-amber-50"
+              onClick={handleSubmitAll}
+            >
+              一键提交
+            </Button>
+          </div>
+          <ScrollArea className="h-[calc(100vh-200px)] md:h-[calc(100vh-240px)]">
             <div className="space-y-2">
               {allProjectTasks
                 .filter(t => t.parentId === selectedProject.id)

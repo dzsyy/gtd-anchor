@@ -56,7 +56,14 @@ export function Inbox() {
 
     const updateData: Record<string, unknown> = {
       title: selectedTask.title,
-      status
+    }
+    // 立即执行 -> 归档
+    if (status === TaskStatus.DONE) {
+      updateData.status = TaskStatus.ARCHIVED
+      updateData.isCompleted = true
+      updateData.completedTime = new Date().toISOString()
+    } else {
+      updateData.status = status
     }
     if (isProject) {
       updateData.isProject = true

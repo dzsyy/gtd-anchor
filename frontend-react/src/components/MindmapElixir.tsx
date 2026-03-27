@@ -13,6 +13,7 @@ interface MindmapElixirProps {
   onToggleComplete?: (taskId: number) => void
   onUpdate?: (taskId: number, data: { title: string }) => void
   onRefresh?: () => void // 刷新数据回调
+  onExport?: (type: 'json' | 'png' | 'markdown') => void // 导出回调
 }
 
 // 将任务转换为 mind-elixir 格式
@@ -57,6 +58,96 @@ function convertToMindElixirData(tasks: Task[], selectedProjectId: number) {
   return buildNode(rootTask)
 }
 
+// 导出为 JSON 文件
+function exportToJson(data: any, filename: string) {
+  const jsonStr = JSON.stringify(data, null, 2)
+  const blob = new Blob([jsonStr], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+// 导出为 Markdown 树形文本
+function exportToMarkdown(tasks: Task[], projectTitle: string): string {
+  const rootTask = tasks.find(t => t.parentId === null && t.isProject)
+  if (!rootTask) return ''
+
+  const buildTree = (parentId: number, level: number = 0): string => {
+    const children = tasks.filter(t => t.parentId === parentId)
+    if (children.length === 0) return ''
+
+    let md = ''
+    children.forEach(task => {
+      const indent = '  '.repeat(level)
+      const checkbox = task.isCompleted ? '[x]' : '[ ]'
+      const levelIcon = task.nodeLevel === NodeLevel.POWDER ? '●' :
+                        task.nodeLevel === NodeLevel.MODULE ? '◆' :
+                        task.nodeLevel === NodeLevel.MILESTONE ? '■' : '★'
+      md += `${indent}- ${checkbox} ${levelIcon} ${task.title}\n`
+      md += buildTree(task.id!, level + 1)
+    })
+    return md
+  }
+
+  return `# ${projectTitle}\n\n${buildTree(rootTask.id!)}`
+}
+
+// 导出为 PNG 图片
+async function exportToPng(containerRef: React.RefObject<HTMLDivElement>, filename: string) {
+  if (!containerRef.current) return
+
+  // 尝试使用 html2canvas 或直接截图
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    message.error('无法创建画布')
+    return
+  }
+
+  // 查找 mind-elixir 的 SVG 元素
+  const svg = containerRef.current.querySelector('svg')
+  if (!svg) {
+    message.error('未找到思维导图')
+    return
+  }
+
+  try {
+    // 将 SVG 转换为图片
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+
+    const img = new Image()
+    img.onload = () => {
+      canvas.width = img.width * 2
+      canvas.height = img.height * 2
+      ctx.scale(2, 2)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0)
+
+      const pngUrl = canvas.toDataURL('image/png')
+      const link = document.createElement('a')
+      link.href = pngUrl
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+      message.success('导出成功')
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      message.error('图片转换失败')
+    }
+    img.src = url
+  } catch (err) {
+    console.error('Export error:', err)
+    message.error('导出失败')
+  }
+}
+
 export function MindmapElixir({
   tasks,
   selectedProjectId,
@@ -66,8 +157,10 @@ export function MindmapElixir({
   onToggleComplete,
   onUpdate,
   onRefresh,
+  onExport,
 }: MindmapElixirProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const exportContainerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mindElixirRef = useRef<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +173,7 @@ export function MindmapElixir({
 
   // 用 ref 保存回调，避免闭包问题
   const callbacksRef = useRef({ onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh })
-  callbacksRef.current = { onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh }
+  callbacksRef.current = { onAddChild, onAddSibling, onDelete, onToggleComplete, onUpdate, onRefresh, onExport }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -281,9 +374,37 @@ export function MindmapElixir({
     )
   }
 
+  // 获取当前项目标题
+  const projectTitle = tasks.find(t => t.id === selectedProjectId)?.title || '思维导图'
+
+  // 处理导出
+  const handleExport = (type: 'json' | 'png' | 'markdown') => {
+    if (type === 'json') {
+      const data = mindElixirRef.current?.getData()
+      if (data) {
+        exportToJson(data, `${projectTitle}.json`)
+        message.success('JSON 导出成功')
+      }
+    } else if (type === 'png') {
+      exportToPng(containerRef, `${projectTitle}.png`)
+    } else if (type === 'markdown') {
+      const md = exportToMarkdown(tasks, projectTitle)
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${projectTitle}.md`
+      link.click()
+      URL.revokeObjectURL(url)
+      message.success('Markdown 导出成功')
+    }
+    // 通知父组件
+    onExport?.(type)
+  }
+
   return (
     <>
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="mind-elixir w-full h-full" />
       <Modal
         title="删除确认"
         open={deleteModal.open}

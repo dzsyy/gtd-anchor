@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle, FolderKanban } from 'lucide-react'
+import { CheckCircle, FolderKanban, RotateCcw } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -140,6 +140,15 @@ export function NextActions() {
     loadTasks()
   }
 
+  // 打回收集箱
+  const handleToInbox = async (id: number) => {
+    await updateTask(id, {
+      status: TaskStatus.INBOX,
+      isSubmitted: false
+    })
+    loadTasks()
+  }
+
   // 递归查找根项目ID
   const findRootId = (allTasks: Task[], taskId: number | undefined | null): number | null => {
     if (!taskId) return null
@@ -224,6 +233,16 @@ export function NextActions() {
                   >
                     {/* 任务标题 */}
                     <span className="flex-1">{task.title}</span>
+
+                    {/* 打回收集箱按钮 */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => task.id && handleToInbox(task.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-600"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
 
                     {/* 完成按钮 */}
                     <Button

@@ -16,7 +16,7 @@ export function Layout() {
       </button>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="md:ml-56 min-h-screen px-3 py-4 md:p-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="mx-auto">
           <Outlet />
         </div>
       </main>

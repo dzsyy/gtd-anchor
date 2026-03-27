@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MoreVertical, Trash2, ArrowRight, Check } from 'lucide-react'
+import { MoreVertical, Trash2, ArrowRight, Check, RotateCcw } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,12 @@ export function WaitingList() {
     loadTasks()
   }
 
+  // 打回收集箱
+  const handleToInbox = async (id: number) => {
+    await updateTask(id, { status: TaskStatus.INBOX })
+    loadTasks()
+  }
+
   const handleDelete = async (id: number) => {
     await deleteTask(id)
     loadTasks()
@@ -91,6 +97,15 @@ export function WaitingList() {
                         等待: {task.waitingFor}
                       </span>
                     )}
+                    {/* 打回收集箱按钮 */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => task.id && handleToInbox(task.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-600"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"

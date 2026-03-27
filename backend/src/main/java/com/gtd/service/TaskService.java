@@ -171,6 +171,44 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
+    // 批量更新任务
+    @Transactional
+    public List<TaskDTO> batchUpdateTasks(List<TaskDTO> tasks) {
+        List<Task> updatedTasks = new java.util.ArrayList<>();
+        for (TaskDTO taskDTO : tasks) {
+            if (taskDTO.getId() != null) {
+                Task task = taskRepository.findById(taskDTO.getId())
+                        .orElseThrow(() -> new RuntimeException("Task not found: " + taskDTO.getId()));
+
+                if (taskDTO.getTitle() != null) task.setTitle(taskDTO.getTitle());
+                if (taskDTO.getDescription() != null) task.setDescription(taskDTO.getDescription());
+                if (taskDTO.getStatus() != null) task.setStatus(taskDTO.getStatus());
+                if (taskDTO.getPriority() != null) task.setPriority(taskDTO.getPriority());
+                if (taskDTO.getContextTag() != null) task.setContextTag(taskDTO.getContextTag());
+                if (taskDTO.getEstimatedTime() != null) task.setEstimatedTime(taskDTO.getEstimatedTime());
+                if (taskDTO.getDueDate() != null) task.setDueDate(taskDTO.getDueDate());
+                if (taskDTO.getParentId() != null) task.setParentId(taskDTO.getParentId());
+                if (taskDTO.getWaitingFor() != null) task.setWaitingFor(taskDTO.getWaitingFor());
+                if (taskDTO.getIsProject() != null) task.setIsProject(taskDTO.getIsProject());
+                if (taskDTO.getNodeLevel() != null) task.setNodeLevel(taskDTO.getNodeLevel());
+                if (taskDTO.getIsCompleted() != null) {
+                    task.setIsCompleted(taskDTO.getIsCompleted());
+                    if (Boolean.TRUE.equals(taskDTO.getIsCompleted())) {
+                        task.setCompletedTime(LocalDateTime.now());
+                    } else {
+                        task.setCompletedTime(null);
+                    }
+                }
+                if (taskDTO.getIsSubmitted() != null) {
+                    task.setIsSubmitted(taskDTO.getIsSubmitted());
+                }
+
+                updatedTasks.add(taskRepository.save(task));
+            }
+        }
+        return updatedTasks.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
     // 转换为 DTO
     private TaskDTO toDTO(Task task) {
         TaskDTO dto = new TaskDTO();

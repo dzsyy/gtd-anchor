@@ -10,6 +10,7 @@ interface TaskState {
   createTask: (task: Partial<Task>) => Promise<void>
   updateTask: (id: number, task: Partial<Task>) => Promise<void>
   deleteTask: (id: number) => Promise<void>
+  batchUpdateTasks: (tasks: Partial<Task>[]) => Promise<void>
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -43,6 +44,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   deleteTask: async (id: number) => {
     await taskApi.delete(id)
+    await get().fetchAllTasks()
+  },
+
+  batchUpdateTasks: async (tasks: Partial<Task>[]) => {
+    await taskApi.batchUpdate(tasks)
     await get().fetchAllTasks()
   },
 }))
