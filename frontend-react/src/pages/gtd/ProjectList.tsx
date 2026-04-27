@@ -96,6 +96,65 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
+  // 添加子节点
+  const handleAddChildNode = async (parentId: number, parentLevel: NodeLevel) => {
+    const nextLevel = (parentLevel + 1) as NodeLevel
+    if (nextLevel > NodeLevel.POWDER) return
+
+    const levelNames: Record<NodeLevel, string> = {
+      [NodeLevel.ROOT]: '里程碑',
+      [NodeLevel.MILESTONE]: '模块',
+      [NodeLevel.MODULE]: '粉末动作',
+      [NodeLevel.POWDER]: '子节点',
+    }
+
+    const title = window.prompt(`请输入${levelNames[nextLevel]}名称：`)
+    if (!title?.trim()) return
+
+    await createTask({
+      title: title.trim(),
+      status: TaskStatus.PROJECT,
+      isProject: false,
+      nodeLevel: nextLevel,
+      parentId,
+    })
+    // 刷新
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
+  // 更新任务标题
+  const handleUpdateTask = async (taskId: number, title: string) => {
+    await updateTask(taskId, { title })
+    // 刷新
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
+  // 删除任务
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm('确定要删除这个节点吗？其所有子节点也会被删除。')) return
+    const descendants = getAllDescendants(allProjectTasks, taskId)
+    for (const desc of descendants) {
+      await deleteTask(desc.id!)
+    }
+    await deleteTask(taskId)
+    // 刷新
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
+  }
+
+  // 切换完成状态
+  const handleToggleComplete = async (taskId: number) => {
+    const task = allProjectTasks.find(t => t.id === taskId)
+    if (task) {
+      await updateTask(taskId, { isCompleted: !task.isCompleted })
+      // 刷新
+      const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+      setAllProjectTasks(allTasks)
+    }
+  }
+
   // 提交到执行清单
   const handleSubmitToExecute = async (taskId: number) => {
     await updateTask(taskId, {
@@ -297,6 +356,10 @@ export function ProjectList() {
               <MindmapSimple
                 tasks={allProjectTasks}
                 selectedProjectId={selectedProject.id!}
+                onAddChild={handleAddChildNode}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onToggleComplete={handleToggleComplete}
               />
             </div>
 

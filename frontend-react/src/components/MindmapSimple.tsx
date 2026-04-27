@@ -1,8 +1,8 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import MindMap from 'simple-mind-map'
 import Export from 'simple-mind-map/src/plugins/Export.js'
-import { Dropdown, message } from 'antd'
-import { Download, FileJson, FileImage, FileText } from 'lucide-react'
+import { Dropdown, message, Modal, Input, Form } from 'antd'
+import { Download, FileJson, FileImage, FileText, Plus, Trash2, Edit3, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Task } from '@/types'
 import { NodeLevel } from '@/types'
@@ -13,14 +13,152 @@ MindMap.usePlugin(Export)
 interface MindmapSimpleProps {
   tasks: Task[]
   selectedProjectId: number
+  onAddChild?: (parentId: number, nodeLevel: NodeLevel) => void
+  onUpdateTask?: (taskId: number, title: string) => void
+  onDeleteTask?: (taskId: number) => void
+  onToggleComplete?: (taskId: number) => void
 }
 
 export function MindmapSimple({
   tasks,
   selectedProjectId,
+  onAddChild,
+  onUpdateTask,
+  onDeleteTask,
+  onToggleComplete,
 }: MindmapSimpleProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mindMapRef = useRef<any>(null)
+  const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; nodeId: string | null; task: Task | null }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    nodeId: null,
+    task: null,
+  })
+  const [editModal, setEditModal] = useState<{ visible: boolean; taskId: number | null; title: string }>({
+    visible: false,
+    taskId: null,
+    title: '',
+  })
+  const [deleteModal, setDeleteModal] = useState<{ visible: boolean; taskId: number | null; title: string }>({
+    visible: false,
+    taskId: null,
+    title: '',
+  })
+  const [form] = Form.useForm()
+
+  // 获取任务的节点级别
+  const getNodeLevel = (taskId: number): NodeLevel | null => {
+    const task = tasks.find(t => t.id === taskId)
+    return task?.nodeLevel ?? null
+  }
+
+  // 检查是否可以添加子节点（限制4级）
+  const canAddChild = (taskId: number): boolean => {
+    const level = getNodeLevel(taskId)
+    return level !== null && level < NodeLevel.POWDER
+  }
+
+  // 检查是否是叶子节点（可以切换完成状态）
+  const isLeafNode = (taskId: number): boolean => {
+    const task = tasks.find(t => t.id === taskId)
+    return task?.nodeLevel === NodeLevel.POWDER
+  }
+
+  // 获取右键菜单操作
+  const handleContextMenu = useCallback((e: MouseEvent, nodeId: string) => {
+    console.log('handleContextMenu called:', { e, nodeId })
+    e.preventDefault()
+    e.stopPropagation()
+
+    // 从 nodeId 解析出 taskId
+    const taskId = parseInt(nodeId)
+    console.log('parsed taskId:', taskId, 'typeof:', typeof taskId)
+    const task = tasks.find(t => t.id === taskId)
+
+    if (!task) return
+
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      nodeId,
+      task,
+    })
+  }, [tasks])
+
+  // 关闭右键菜单
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(prev => ({ ...prev, visible: false }))
+  }, [])
+
+  // 添加子节点
+  const handleAddChild = useCallback(() => {
+    if (!contextMenu.task || !onAddChild) return
+    onAddChild(contextMenu.task.id!, contextMenu.task.nodeLevel as NodeLevel)
+    closeContextMenu()
+  }, [contextMenu.task, onAddChild, closeContextMenu])
+
+  // 编辑节点
+  const handleEditNode = useCallback(() => {
+    if (!contextMenu.task) return
+    setEditModal({
+      visible: true,
+      taskId: contextMenu.task.id!,
+      title: contextMenu.task.title,
+    })
+    closeContextMenu()
+  }, [contextMenu.task, closeContextMenu])
+
+  // 删除节点
+  const handleDeleteNode = useCallback(() => {
+    if (!contextMenu.task) return
+    setDeleteModal({
+      visible: true,
+      taskId: contextMenu.task.id!,
+      title: contextMenu.task.title,
+    })
+    closeContextMenu()
+  }, [contextMenu.task, closeContextMenu])
+
+  // 切换完成状态
+  const handleToggleComplete = useCallback(() => {
+    if (!contextMenu.task || !onToggleComplete) return
+    onToggleComplete(contextMenu.task.id!)
+    closeContextMenu()
+  }, [contextMenu.task, onToggleComplete, closeContextMenu])
+
+  // 提交编辑
+  const handleEditSubmit = useCallback(async () => {
+    try {
+      const values = await form.validateFields()
+      if (editModal.taskId && onUpdateTask) {
+        onUpdateTask(editModal.taskId, values.title)
+        setEditModal({ visible: false, taskId: null, title: '' })
+        form.resetFields()
+      }
+    } catch (err) {
+      // 表单验证失败
+    }
+  }, [editModal.taskId, onUpdateTask, form])
+
+  // 提交删除
+  const handleDeleteSubmit = useCallback(() => {
+    if (deleteModal.taskId && onDeleteTask) {
+      onDeleteTask(deleteModal.taskId)
+      setDeleteModal({ visible: false, taskId: null, title: '' })
+    }
+  }, [deleteModal.taskId, onDeleteTask])
+
+  // 点击外部关闭右键菜单
+  useEffect(() => {
+    const handleClick = () => closeContextMenu()
+    if (contextMenu.visible) {
+      document.addEventListener('click', handleClick)
+      return () => document.removeEventListener('click', handleClick)
+    }
+  }, [contextMenu.visible, closeContextMenu])
 
   // 构建思维导图数据
   const mindMapData = useMemo(() => {
@@ -100,6 +238,25 @@ export function MindmapSimple({
       initRootNodePosition: ['left', 'center'],
       isLimitMindMapInCanvas: true,
     } as any)
+
+    // 添加右键菜单事件 (注意事件名是 node_contextmenu)
+    mindMap.on('node_contextmenu', (e: MouseEvent, node: any) => {
+      console.log('node_contextmenu event:', { e, node, nodeId: node?.id, nodeData: node?.nodeData })
+      handleContextMenu(e, node.id)
+    })
+
+    // 双击编辑节点 (注意事件名是 node_dblclick)
+    mindMap.on('node_dblclick', (node: any) => {
+      const taskId = parseInt(node.id.split('_').pop()!)
+      const task = tasks.find(t => t.id === taskId)
+      if (task) {
+        setEditModal({
+          visible: true,
+          taskId: task.id!,
+          title: task.title,
+        })
+      }
+    })
 
     mindMapRef.current = mindMap
   }
@@ -222,6 +379,91 @@ export function MindmapSimple({
           </Button>
         </Dropdown>
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu.visible && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-lg border py-1 min-w-[160px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.task && canAddChild(contextMenu.task.id!) && (
+            <button
+              className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100"
+              onClick={handleAddChild}
+            >
+              <Plus className="h-4 w-4" />
+              添加子节点
+            </button>
+          )}
+          {contextMenu.task && (
+            <button
+              className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100"
+              onClick={handleEditNode}
+            >
+              <Edit3 className="h-4 w-4" />
+              编辑
+            </button>
+          )}
+          {contextMenu.task && isLeafNode(contextMenu.task.id!) && (
+            <button
+              className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100"
+              onClick={handleToggleComplete}
+            >
+              <Check className="h-4 w-4" />
+              {contextMenu.task.isCompleted ? '标记未完成' : '标记完成'}
+            </button>
+          )}
+          {contextMenu.task && (
+            <button
+              className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-red-500 hover:bg-red-50"
+              onClick={handleDeleteNode}
+            >
+              <Trash2 className="h-4 w-4" />
+              删除
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 编辑弹窗 */}
+      <Modal
+        title="编辑节点"
+        open={editModal.visible}
+        onOk={handleEditSubmit}
+        onCancel={() => {
+          setEditModal({ visible: false, taskId: null, title: '' })
+          form.resetFields()
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Form form={form} layout="vertical" initialValues={{ title: editModal.title }}>
+          <Form.Item
+            name="title"
+            label="标题"
+            rules={[{ required: true, message: '请输入标题' }]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 删除确认弹窗 */}
+      <Modal
+        title="确认删除"
+        open={deleteModal.visible}
+        onOk={handleDeleteSubmit}
+        onCancel={() => {
+          setDeleteModal({ visible: false, taskId: null, title: '' })
+        }}
+        okText="确定"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+      >
+        <p>确定要删除节点「{deleteModal.title}」吗？</p>
+        <p className="text-red-500 text-sm mt-2">注意：其所有子节点也会被删除</p>
+      </Modal>
 
       {/* MindMap 容器 */}
       <div
