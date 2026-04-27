@@ -68,15 +68,12 @@ export function MindmapSimple({
 
   // 获取右键菜单操作
   const handleContextMenu = useCallback((e: MouseEvent, nodeId: string) => {
-    console.log('DEBUG handleContextMenu:', { nodeId })
     e.preventDefault()
     e.stopPropagation()
 
     // nodeId 就是 task id（数字）
     const taskId = parseInt(nodeId)
-    console.log('DEBUG parsed taskId:', taskId, 'valid:', !isNaN(taskId))
     const task = tasks.find(t => t.id === taskId)
-    console.log('DEBUG found task:', task?.id, task?.title)
 
     if (!task) return
 
@@ -96,9 +93,7 @@ export function MindmapSimple({
 
   // 添加子节点
   const handleAddChild = useCallback(() => {
-    console.log('DEBUG handleAddChild called, task:', contextMenu.task?.id, contextMenu.task?.title)
     if (!contextMenu.task || !onAddChild) return
-    console.log('DEBUG calling onAddChild with:', contextMenu.task.id!, contextMenu.task.nodeLevel)
     onAddChild(contextMenu.task.id!, contextMenu.task.nodeLevel as NodeLevel)
     closeContextMenu()
   }, [contextMenu.task, onAddChild, closeContextMenu])
@@ -242,24 +237,8 @@ export function MindmapSimple({
       isLimitMindMapInCanvas: true,
     } as any)
 
-    console.log('DEBUG MindMap instance type:', mindMap.constructor.name)
-    console.log('DEBUG MindMap has on method:', typeof mindMap.on)
-    console.log('DEBUG MindMap has emit method:', typeof mindMap.emit)
-
-    // 测试 general contextmenu 事件
-    mindMap.on('contextmenu', () => {
-      console.log('DEBUG general contextmenu event fired')
-    })
-
-    // 添加右键菜单事件 (注意事件名是 node_contextmenu)
+    // 添加右键菜单事件
     mindMap.on('node_contextmenu', (e: MouseEvent, node: any) => {
-      console.log('DEBUG node_contextmenu:', {
-        nodeId: node?.id,
-        nodeUid: node?.uid,
-        nodeDataId: node?.nodeData?.id,
-        nodeData: node?.nodeData,
-        hasNodeData: !!node?.nodeData
-      })
       // node.id 可能是 uid，需要从 nodeData.id 获取原始 task id
       const taskId = node?.nodeData?.id || node?.id
       handleContextMenu(e, String(taskId))
