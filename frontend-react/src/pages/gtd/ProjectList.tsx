@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { message } from 'antd'
+import { message, Modal, Form, Select } from 'antd'
 import { Plus, Folder, Trash2, ChevronRight, Sparkles, RotateCcw, MoreVertical } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
@@ -42,6 +42,8 @@ export function ProjectList() {
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [selectedProject, setSelectedProject] = useState<Task | null>(null)
   const [guideMessage, setGuideMessage] = useState(GUIDE_MESSAGES[NodeLevel.ROOT])
+  const [addNodeModalVisible, setAddNodeModalVisible] = useState(false)
+  const [addNodeForm] = Form.useForm()
 
   const loadProjects = async () => {
     const data = await fetchTasksByStatus(TaskStatus.PROJECT)
@@ -96,31 +98,37 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
-  // 添加子节点
+  // 添加子节点（通过对话框）
   const handleAddChildNode = async (parentId: number, parentLevel: NodeLevel) => {
     const nextLevel = (parentLevel + 1) as NodeLevel
-    if (nextLevel > NodeLevel.POWDER) return
-
-    const levelNames: Record<NodeLevel, string> = {
-      [NodeLevel.ROOT]: '里程碑',
-      [NodeLevel.MILESTONE]: '模块',
-      [NodeLevel.MODULE]: '粉末动作',
-      [NodeLevel.POWDER]: '子节点',
+    if (nextLevel > NodeLevel.POWDER) {
+      message.warning('已达到最大层级（4级）')
+      return
     }
+    addNodeForm.setFieldsValue({ parentId, nodeLevel: nextLevel })
+    setAddNodeModalVisible(true)
+  }
 
-    const title = window.prompt(`请输入${levelNames[nextLevel]}名称：`)
-    if (!title?.trim()) return
-
-    await createTask({
-      title: title.trim(),
-      status: TaskStatus.PROJECT,
-      isProject: false,
-      nodeLevel: nextLevel,
-      parentId,
-    })
-    // 刷新
-    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
-    setAllProjectTasks(allTasks)
+  // 提交添加节点表单
+  const handleAddNodeSubmit = async () => {
+    try {
+      const values = await addNodeForm.validateFields()
+      await createTask({
+        title: values.title.trim(),
+        status: TaskStatus.PROJECT,
+        isProject: false,
+        nodeLevel: values.nodeLevel,
+        parentId: values.parentId,
+      })
+      message.success('添加节点成功')
+      setAddNodeModalVisible(false)
+      addNodeForm.resetFields()
+      // 刷新
+      const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+      setAllProjectTasks(allTasks)
+    } catch (err) {
+      // 表单验证失败
+    }
   }
 
   // 更新任务标题
@@ -342,6 +350,17 @@ export function ProjectList() {
               <div className="flex gap-2">
                 <Button
                   size="sm"
+                  variant="default"
+                  onClick={() => {
+                    addNodeForm.setFieldsValue({ parentId: selectedProject.id!, nodeLevel: NodeLevel.MILESTONE })
+                    setAddNodeModalVisible(true)
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  添加节点
+                </Button>
+                <Button
+                  size="sm"
                   variant="ghost"
                   className="text-red-500 hover:text-red-600"
                   onClick={() => handleDeleteProject(selectedProject.id!)}
@@ -455,6 +474,55 @@ export function ProjectList() {
           </ScrollArea>
         </div>
       )}
+
+      {/* 添加节点对话框 */}
+      <Modal
+        title="添加节点"
+        open={addNodeModalVisible}
+        onOk={handleAddNodeSubmit}
+        onCancel={() => {
+          setAddNodeModalVisible(false)
+          addNodeForm.resetFields()
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Form form={addNodeForm} layout="vertical">
+          <Form.Item
+            name="title"
+            label="节点名称"
+            rules={[{ required: true, message: '请输入节点名称' }]}
+          >
+            <Input placeholder="请输入节点名称" />
+          </Form.Item>
+          <Form.Item
+            name="parentId"
+            label="父节点"
+            rules={[{ required: true, message: '请选择父节点' }]}
+          >
+            <Select placeholder="请选择父节点">
+              {allProjectTasks
+                .filter(t => t.nodeLevel !== NodeLevel.POWDER)
+                .map(t => (
+                  <Select.Option key={t.id} value={t.id!}>
+                    {t.nodeLevel === NodeLevel.ROOT ? t.title : `${'  '.repeat(t.nodeLevel!)}↳ ${t.title}`}
+                  </Select.Option>
+                ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="nodeLevel"
+            label="节点类型"
+            rules={[{ required: true, message: '请选择节点类型' }]}
+          >
+            <Select placeholder="请选择节点类型">
+              <Select.Option value={NodeLevel.MILESTONE}>里程碑</Select.Option>
+              <Select.Option value={NodeLevel.MODULE}>模块</Select.Option>
+              <Select.Option value={NodeLevel.POWDER}>粉末动作</Select.Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }
