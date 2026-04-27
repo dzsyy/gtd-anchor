@@ -46,6 +46,21 @@ export function ProjectList() {
   const [addNodeForm] = Form.useForm()
   const [deleteNodeModalVisible, setDeleteNodeModalVisible] = useState(false)
   const [nodeToDelete, setNodeToDelete] = useState<Task | null>(null)
+  const [selectedNodeForAdd, setSelectedNodeForAdd] = useState<Task | null>(null)
+
+  // 获取子节点的名称
+  const getChildLevelName = (parentLevel: number): string => {
+    switch (parentLevel) {
+      case NodeLevel.ROOT: return '里程碑'
+      case NodeLevel.MILESTONE: return '模块'
+      case NodeLevel.MODULE: return '粉末动作'
+      default: return '子节点'
+    }
+  }
+
+  const childLevelName = selectedNodeForAdd
+    ? getChildLevelName(selectedNodeForAdd.nodeLevel ?? NodeLevel.ROOT)
+    : '子节点'
 
   const loadProjects = async () => {
     const data = await fetchTasksByStatus(TaskStatus.PROJECT)
@@ -111,18 +126,47 @@ export function ProjectList() {
     setAddNodeModalVisible(true)
   }
 
-  // 提交添加节点表单
+  // 提交添加节点表单（三分法 - 一次性添加3个节点）
   const handleAddNodeSubmit = async () => {
     try {
       const values = await addNodeForm.validateFields()
-      await createTask({
-        title: values.title.trim(),
+      const titles = [
+        values.title1?.trim(),
+        values.title2?.trim(),
+        values.title3?.trim(),
+      ].filter(Boolean)
+
+      if (titles.length === 0) {
+        message.warning('请至少填写一个节点名称')
+        return
+      }
+
+      if (!selectedNodeForAdd) {
+        message.warning('请选择父节点')
+        return
+      }
+
+      // 根据父节点的 nodeLevel 计算子节点的 nodeLevel
+      const parentLevel = selectedNodeForAdd.nodeLevel ?? NodeLevel.ROOT
+      const childLevel = (parentLevel + 1) as NodeLevel
+
+      if (childLevel > NodeLevel.POWDER) {
+        message.warning('已达到最大层级（4级），无法继续添加子节点')
+        return
+      }
+
+      // 批量创建节点
+      const tasksToCreate = titles.map(title => ({
+        title,
         status: TaskStatus.PROJECT,
         isProject: false,
-        nodeLevel: values.nodeLevel,
-        parentId: values.parentId,
-      })
-      message.success('添加节点成功')
+        nodeLevel: childLevel,
+        parentId: selectedNodeForAdd.id!,
+      }))
+
+      await Promise.all(tasksToCreate.map(task => createTask(task)))
+
+      message.success(`成功添加 ${titles.length} 个${childLevelName}！`)
       setAddNodeModalVisible(false)
       addNodeForm.resetFields()
       // 刷新
@@ -370,12 +414,14 @@ export function ProjectList() {
                   size="sm"
                   variant="default"
                   onClick={() => {
-                    addNodeForm.setFieldsValue({ parentId: selectedProject.id!, nodeLevel: NodeLevel.MILESTONE })
+                    // 默认以项目根节点为父节点
+                    setSelectedNodeForAdd(selectedProject)
+                    addNodeForm.resetFields()
                     setAddNodeModalVisible(true)
                   }}
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  添加节点
+                  三分法添加
                 </Button>
                 <Button
                   size="sm"
@@ -506,49 +552,46 @@ export function ProjectList() {
 
       {/* 添加节点对话框 */}
       <Modal
-        title="添加节点"
+        title={
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🌱 三分法添加节点</span>
+          </div>
+        }
         open={addNodeModalVisible}
         onOk={handleAddNodeSubmit}
         onCancel={() => {
           setAddNodeModalVisible(false)
           addNodeForm.resetFields()
         }}
-        okText="确定"
+        okText="确定添加"
         cancelText="取消"
+        width={420}
       >
         <Form form={addNodeForm} layout="vertical">
+          <div className="bg-amber-50 rounded-lg p-3 mb-4">
+            <div className="text-sm text-amber-700">
+              <span className="font-medium">📌 三分法提示</span>
+              <p className="mt-1">将「<span className="font-bold">{selectedNodeForAdd?.title}</span>」拆分为 <span className="font-bold text-base">3</span> 个{childLevelName}</p>
+              <p className="text-xs text-amber-600 mt-1">至少填写一项即可提交</p>
+            </div>
+          </div>
           <Form.Item
-            name="title"
-            label="节点名称"
-            rules={[{ required: true, message: '请输入节点名称' }]}
+            name="title1"
+            rules={[{ required: false }]}
           >
-            <Input placeholder="请输入节点名称" />
+            <Input placeholder={`${childLevelName} 1（选填）`} className="mb-2" />
           </Form.Item>
           <Form.Item
-            name="parentId"
-            label="父节点"
-            rules={[{ required: true, message: '请选择父节点' }]}
+            name="title2"
+            rules={[{ required: false }]}
           >
-            <Select placeholder="请选择父节点">
-              {allProjectTasks
-                .filter(t => t.nodeLevel !== NodeLevel.POWDER)
-                .map(t => (
-                  <Select.Option key={t.id} value={t.id!}>
-                    {t.nodeLevel === NodeLevel.ROOT ? t.title : `${'  '.repeat(t.nodeLevel!)}↳ ${t.title}`}
-                  </Select.Option>
-                ))}
-            </Select>
+            <Input placeholder={`${childLevelName} 2（选填）`} className="mb-2" />
           </Form.Item>
           <Form.Item
-            name="nodeLevel"
-            label="节点类型"
-            rules={[{ required: true, message: '请选择节点类型' }]}
+            name="title3"
+            rules={[{ required: false }]}
           >
-            <Select placeholder="请选择节点类型">
-              <Select.Option value={NodeLevel.MILESTONE}>里程碑</Select.Option>
-              <Select.Option value={NodeLevel.MODULE}>模块</Select.Option>
-              <Select.Option value={NodeLevel.POWDER}>粉末动作</Select.Option>
-            </Select>
+            <Input placeholder={`${childLevelName} 3（选填）`} />
           </Form.Item>
         </Form>
       </Modal>
