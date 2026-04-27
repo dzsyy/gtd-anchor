@@ -68,13 +68,11 @@ export function MindmapSimple({
 
   // 获取右键菜单操作
   const handleContextMenu = useCallback((e: MouseEvent, nodeId: string) => {
-    console.log('handleContextMenu called:', { e, nodeId })
     e.preventDefault()
     e.stopPropagation()
 
     // 从 nodeId 解析出 taskId
     const taskId = parseInt(nodeId)
-    console.log('parsed taskId:', taskId, 'typeof:', typeof taskId)
     const task = tasks.find(t => t.id === taskId)
 
     if (!task) return
@@ -241,13 +239,12 @@ export function MindmapSimple({
 
     // 添加右键菜单事件 (注意事件名是 node_contextmenu)
     mindMap.on('node_contextmenu', (e: MouseEvent, node: any) => {
-      console.log('node_contextmenu event:', { e, node, nodeId: node?.id, nodeData: node?.nodeData })
       handleContextMenu(e, node.id)
     })
 
     // 双击编辑节点 (注意事件名是 node_dblclick)
     mindMap.on('node_dblclick', (node: any) => {
-      const taskId = parseInt(node.id.split('_').pop()!)
+      const taskId = parseInt(node.id)
       const task = tasks.find(t => t.id === taskId)
       if (task) {
         setEditModal({
