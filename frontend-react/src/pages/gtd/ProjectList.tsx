@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MindmapSimple } from '@/components/MindmapSimple'
+import { MindmapFlow } from '@/components/MindmapFlow'
 
 // 温柔引导提示
 const GUIDE_MESSAGES: Record<number, string> = {
@@ -115,17 +115,6 @@ export function ProjectList() {
     setAllProjectTasks(allTasks)
   }
 
-  // 添加子节点（通过对话框）
-  const handleAddChildNode = async (parentId: number, parentLevel: NodeLevel) => {
-    const nextLevel = (parentLevel + 1) as NodeLevel
-    if (nextLevel > NodeLevel.POWDER) {
-      message.warning('已达到最大层级（4级）')
-      return
-    }
-    addNodeForm.setFieldsValue({ parentId, nodeLevel: nextLevel })
-    setAddNodeModalVisible(true)
-  }
-
   // 提交添加节点表单（三分法 - 一次性添加3个节点）
   const handleAddNodeSubmit = async () => {
     try {
@@ -191,38 +180,6 @@ export function ProjectList() {
     // 刷新
     const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
     setAllProjectTasks(allTasks)
-  }
-
-  // 更新任务标题
-  const handleUpdateTask = async (taskId: number, title: string) => {
-    await updateTask(taskId, { title })
-    // 刷新
-    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
-    setAllProjectTasks(allTasks)
-  }
-
-  // 删除任务
-  const handleDeleteTask = async (taskId: number) => {
-    if (!confirm('确定要删除这个节点吗？其所有子节点也会被删除。')) return
-    const descendants = getAllDescendants(allProjectTasks, taskId)
-    for (const desc of descendants) {
-      await deleteTask(desc.id!)
-    }
-    await deleteTask(taskId)
-    // 刷新
-    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
-    setAllProjectTasks(allTasks)
-  }
-
-  // 切换完成状态
-  const handleToggleComplete = async (taskId: number) => {
-    const task = allProjectTasks.find(t => t.id === taskId)
-    if (task) {
-      await updateTask(taskId, { isCompleted: !task.isCompleted })
-      // 刷新
-      const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
-      setAllProjectTasks(allTasks)
-    }
   }
 
   // 提交到执行清单
@@ -447,13 +404,9 @@ export function ProjectList() {
 
             {/* 思维导图 */}
             <div className="flex-1 overflow-hidden">
-              <MindmapSimple
+              <MindmapFlow
                 tasks={allProjectTasks}
                 selectedProjectId={selectedProject.id!}
-                onAddChild={handleAddChildNode}
-                onUpdateTask={handleUpdateTask}
-                onDeleteTask={handleDeleteTask}
-                onToggleComplete={handleToggleComplete}
               />
             </div>
 

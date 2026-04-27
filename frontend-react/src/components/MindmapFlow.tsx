@@ -1,236 +1,184 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   ReactFlow,
   Controls,
   Background,
+  useNodesState,
+  useEdgesState,
   BackgroundVariant,
-  ReactFlowProvider,
+  Handle,
+  Position,
+  MarkerType,
 } from '@xyflow/react'
+import type { Node, Edge, NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Plus, Trash2 } from 'lucide-react'
+import dagre from 'dagre'
 import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
 import type { Task } from '@/types'
 import { NodeLevel } from '@/types'
 
 interface MindmapFlowProps {
   tasks: Task[]
   selectedProjectId: number
-  onAddChild: (parentId: number) => void
-  onDelete: (taskId: number) => void
-  onToggleComplete: (taskId: number) => void
+}
+
+// 节点颜色配置
+const getNodeColor = (nodeLevel: number | undefined, isCompleted: boolean | undefined): string => {
+  if (nodeLevel === NodeLevel.ROOT) return '#00c0b8'
+  if (nodeLevel === NodeLevel.MILESTONE) return '#3b82f6'
+  if (nodeLevel === NodeLevel.MODULE) return '#10b981'
+  if (nodeLevel === NodeLevel.POWDER) return isCompleted ? '#9ca3af' : '#f59e0b'
+  return '#00c0b8'
 }
 
 // 自定义节点组件
-const RootNode = ({ data }: { data: any }) => (
-  <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold shadow-lg min-w-[140px] text-center">
-    <div className="text-lg">{data.label}</div>
-    <div className="flex gap-1 justify-center mt-2 opacity-80">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 w-6 p-0 text-white hover:bg-white/20"
-        onClick={(e) => { e.stopPropagation(); data.onAdd() }}
-      >
-        <Plus className="h-3 w-3" />
-      </Button>
-    </div>
-  </div>
-)
+function MindmapNode({ data }: { data: any }) {
+  const isRoot = data.nodeLevel === NodeLevel.ROOT
+  const isCompleted = data.task?.isCompleted
 
-const MilestoneNode = ({ data }: { data: any }) => (
-  <div className="px-4 py-2 bg-gradient-to-r from-sky-100 to-sky-200 border-2 border-sky-500 rounded-lg min-w-[120px] text-center">
-    <div className="text-sm font-medium text-sky-700">{data.label}</div>
-    <div className="flex gap-1 justify-center mt-1">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-5 w-5 p-0 text-sky-600 hover:bg-sky-200"
-        onClick={(e) => { e.stopPropagation(); data.onAdd() }}
-      >
-        <Plus className="h-3 w-3" />
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-5 w-5 p-0 text-red-400 hover:bg-red-100"
-        onClick={(e) => { e.stopPropagation(); data.onDelete() }}
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
+  return (
+    <div
+      className={`
+        px-4 py-2 rounded-lg shadow-md border-2 min-w-[100px] text-center
+        ${isRoot ? 'text-white font-bold text-lg' : 'text-sm'}
+        ${isCompleted && data.nodeLevel === NodeLevel.POWDER ? 'opacity-60 line-through' : ''}
+      `}
+      style={{
+        backgroundColor: getNodeColor(data.nodeLevel, isCompleted),
+        borderColor: getNodeColor(data.nodeLevel, isCompleted),
+      }}
+    >
+      <Handle type="target" position={Position.Left} className="!bg-gray-400" />
+      <div>{data.label}</div>
+      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
     </div>
-  </div>
-)
-
-const ModuleNode = ({ data }: { data: any }) => (
-  <div className="px-4 py-2 bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-500 rounded-lg min-w-[100px] text-center">
-    <div className="text-sm font-medium text-green-700">{data.label}</div>
-    <div className="flex gap-1 justify-center mt-1">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-5 w-5 p-0 text-green-600 hover:bg-green-200"
-        onClick={(e) => { e.stopPropagation(); data.onAdd() }}
-      >
-        <Plus className="h-3 w-3" />
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-5 w-5 p-0 text-red-400 hover:bg-red-100"
-        onClick={(e) => { e.stopPropagation(); data.onDelete() }}
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
-    </div>
-  </div>
-)
-
-const PowderNode = ({ data }: { data: any }) => (
-  <div
-    className={`px-3 py-1.5 border-2 rounded-lg min-w-[80px] text-center cursor-pointer transition-all ${
-      data.task?.isCompleted
-        ? 'bg-gray-100 border-gray-300 opacity-60'
-        : 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-400'
-    }`}
-    onClick={(e) => { e.stopPropagation(); data.onToggle() }}
-  >
-    <div className={`text-xs font-medium ${data.task?.isCompleted ? 'text-gray-400 line-through' : 'text-amber-700'}`}>
-      {data.label}
-    </div>
-    {!data.task?.isCompleted && (
-      <div className="flex gap-1 justify-center mt-0.5">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-4 w-4 p-0 text-red-400 hover:bg-red-100"
-          onClick={(e) => { e.stopPropagation(); data.onDelete() }}
-        >
-          <Trash2 className="h-2 w-2" />
-        </Button>
-      </div>
-    )}
-  </div>
-)
-
-const nodeTypes = {
-  root: RootNode,
-  milestone: MilestoneNode,
-  module: ModuleNode,
-  powder: PowderNode,
+  )
 }
 
-function MindmapFlowInner({ tasks, selectedProjectId, onAddChild, onDelete, onToggleComplete }: MindmapFlowProps) {
-  // 构建节点和边
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { initialNodes, initialEdges } = useMemo(() => {
-    const nodes: any[] = []
-    const edges: any[] = []
+const nodeTypes: NodeTypes = {
+  mindmapNode: MindmapNode,
+}
 
-    const rootTask = tasks.find(t => t.id === selectedProjectId)
+// 使用 dagre 计算布局
+const getLayoutedElements = (nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' = 'LR') => {
+  const dagreGraph = new dagre.graphlib.Graph()
+  dagreGraph.setDefaultEdgeLabel(() => ({}))
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 60, ranksep: 100 })
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 150, height: 50 })
+  })
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(dagreGraph)
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - 75,
+        y: nodeWithPosition.y - 25,
+      },
+    }
+  })
+
+  return { nodes: layoutedNodes, edges }
+}
+
+export function MindmapFlow({ tasks, selectedProjectId }: MindmapFlowProps) {
+
+  // 构建节点和边
+  const { initialNodes, initialEdges } = useMemo(() => {
+    const rootTask = tasks.find((t) => t.id === selectedProjectId)
     if (!rootTask) return { initialNodes: [], initialEdges: [] }
 
-    // 根节点位置
-    nodes.push({
-      id: String(rootTask.id),
-      type: 'root',
-      position: { x: 50, y: 200 },
-      data: {
-        label: rootTask.title,
-        task: rootTask,
-        onAdd: () => onAddChild(rootTask.id!),
-        onDelete: () => onDelete(rootTask.id!),
-      },
-    })
+    const nodes: Node[] = []
+    const edges: Edge[] = []
 
-    // 递归计算位置
-    const calculatePositions = (parentId: number, parentX: number, parentY: number, level: number) => {
-      const children = tasks.filter(t => t.parentId === parentId)
-      if (children.length === 0) return
-
-      const xGap = level === 1 ? 200 : 160
-
-      if (level === 1) {
-        // 里程碑/模块从右边出来
-        const yGap = 120
-        const totalHeight = children.length * yGap
-        let startY = parentY - totalHeight / 2
-
-        children.forEach((child, index) => {
-          const y = startY + index * yGap
-          const nodeType = child.nodeLevel === NodeLevel.POWDER ? 'powder' : (child.nodeLevel === NodeLevel.MODULE ? 'module' : 'milestone')
-
-          nodes.push({
-            id: String(child.id),
-            type: nodeType,
-            position: { x: parentX + xGap, y },
-            data: {
-              label: child.title,
-              task: child,
-              onAdd: () => onAddChild(child.id!),
-              onDelete: () => onDelete(child.id!),
-              onToggle: () => onToggleComplete(child.id!),
-            },
-          })
-
-          edges.push({
-            id: `e-${parentId}-${child.id}`,
-            source: String(parentId),
-            target: String(child.id),
-            type: 'smoothstep',
-            style: { stroke: level === 1 ? '#0ea5e9' : '#22c55e', strokeWidth: 2 },
-          })
-
-          calculatePositions(child.id!, parentX + xGap, y, level + 1)
+    // 添加所有节点
+    tasks.forEach((task) => {
+      if (task.id === selectedProjectId) {
+        nodes.push({
+          id: String(task.id),
+          type: 'mindmapNode',
+          position: { x: 0, y: 0 },
+          data: { label: task.title, nodeLevel: task.nodeLevel, task },
         })
-      } else if (level === 2) {
-        // 模块下的粉末从下边展开
-        const xGap = 120
-        let startX = parentX
-
-        children.forEach((child, index) => {
-          const x = startX + index * xGap
-          const y = parentY + 100
-
-          nodes.push({
-            id: String(child.id),
-            type: 'powder',
-            position: { x, y },
-            data: {
-              label: child.title,
-              task: child,
-              onToggle: () => onToggleComplete(child.id!),
-              onDelete: () => onDelete(child.id!),
-            },
-          })
-
-          edges.push({
-            id: `e-${parentId}-${child.id}`,
-            source: String(parentId),
-            target: String(child.id),
-            type: 'smoothstep',
-            style: { stroke: '#f59e0b', strokeWidth: 2 },
-          })
+      } else if (task.parentId === selectedProjectId) {
+        nodes.push({
+          id: String(task.id),
+          type: 'mindmapNode',
+          position: { x: 0, y: 0 },
+          data: { label: task.title, nodeLevel: task.nodeLevel, task },
+        })
+        edges.push({
+          id: `e${task.parentId}-${task.id}`,
+          source: String(task.parentId),
+          target: String(task.id),
+          type: 'smoothstep',
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
         })
       }
+    })
+
+    // 递归添加子节点
+    const addChildren = (parentId: number) => {
+      const children = tasks.filter((t) => t.parentId === parentId && t.id !== selectedProjectId)
+      children.forEach((child) => {
+        nodes.push({
+          id: String(child.id),
+          type: 'mindmapNode',
+          position: { x: 0, y: 0 },
+          data: { label: child.title, nodeLevel: child.nodeLevel, task: child },
+        })
+        edges.push({
+          id: `e${child.parentId}-${child.id}`,
+          source: String(child.parentId),
+          target: String(child.id),
+          type: 'smoothstep',
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+        })
+        addChildren(child.id!)
+      })
     }
 
-    calculatePositions(selectedProjectId, 50, 200, 1)
+    addChildren(selectedProjectId)
 
-    return { initialNodes: nodes, initialEdges: edges }
-  }, [tasks, selectedProjectId, onAddChild, onDelete, onToggleComplete])
+    // 计算布局
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [nodes, setNodes] = useState<any[]>(initialNodes)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [edges, setEdges] = useState<any[]>(initialEdges)
+    return { initialNodes: layoutedNodes, initialEdges: layoutedEdges }
+  }, [tasks, selectedProjectId])
 
-  // 当tasks变化时更新节点
-  useEffect(() => {
-    setNodes(initialNodes)
-    setEdges(initialEdges)
-  }, [initialNodes, initialEdges])
+  const [nodes, , onNodesChange] = useNodesState(initialNodes)
+  const [edges, , onEdgesChange] = useEdgesState(initialEdges)
 
-  if (!tasks.find(t => t.id === selectedProjectId)) {
+  // 导出 PNG
+  const handleExportPNG = useCallback(() => {
+    const flowContainer = document.querySelector('.react-flow') as HTMLElement
+    if (!flowContainer) return
+
+    import('html-to-image').then((htmlToImage) => {
+      htmlToImage.toPng(flowContainer, {
+        backgroundColor: '#ffffff',
+        quality: 1,
+      }).then((dataUrl) => {
+        const link = document.createElement('a')
+        link.download = `mindmap-${selectedProjectId}.png`
+        link.href = dataUrl
+        link.click()
+      })
+    })
+  }, [selectedProjectId])
+
+  if (!tasks.find((t) => t.id === selectedProjectId)) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         选择一个项目开始
@@ -239,27 +187,30 @@ function MindmapFlowInner({ tasks, selectedProjectId, onAddChild, onDelete, onTo
   }
 
   return (
-    <div className="w-full h-[500px]">
+    <div className="w-full h-full relative">
+      {/* 导出按钮 */}
+      <div className="absolute top-3 right-3 z-10">
+        <Button size="sm" variant="ghost" onClick={handleExportPNG}>
+          <Download className="h-4 w-4 mr-1" />
+          导出 PNG
+        </Button>
+      </div>
+
+      {/* 思维导图 */}
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.3}
-        maxZoom={1.5}
+        minZoom={0.1}
+        maxZoom={2}
+        attributionPosition="bottom-left"
       >
         <Controls />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
       </ReactFlow>
     </div>
-  )
-}
-
-export function MindmapFlow(props: MindmapFlowProps) {
-  return (
-    <ReactFlowProvider>
-      <MindmapFlowInner {...props} />
-    </ReactFlowProvider>
   )
 }

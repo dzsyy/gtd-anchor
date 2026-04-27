@@ -6,10 +6,7 @@ import {
   Tag,
   Sparkles,
   Trash2,
-  Home,
-  Lightbulb,
-  Trophy,
-  Archive
+  Archive,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,16 +19,8 @@ const menuGroups = [
       { path: '/projects', label: '项目清单', icon: FolderKanban },
       { path: '/waiting', label: '等待清单', icon: Clock },
       { path: '/someday', label: '可能清单', icon: Sparkles },
-      { path: '/trash', label: '回收箱', icon: Trash2 },
+      { path: '/trash', label: '回收站', icon: Trash2 },
       { path: '/archive', label: '归档', icon: Archive },
-    ],
-  },
-  {
-    title: '锚点 成长陪伴',
-    items: [
-      { path: '/anchor', label: '灵感捕捉', icon: Home },
-      { path: '/inspirations', label: '灵感信箱', icon: Lightbulb },
-      { path: '/achievements', label: '成果箱', icon: Trophy },
     ],
   },
 ]
@@ -58,7 +47,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-primary">GTD + 锚点</h1>
+            <h1 className="text-xl font-bold text-primary">GTD</h1>
           </div>
           <nav className="flex-1 overflow-y-auto py-4">
             {menuGroups.map((group) => (
