@@ -44,6 +44,8 @@ export function ProjectList() {
   const [guideMessage, setGuideMessage] = useState(GUIDE_MESSAGES[NodeLevel.ROOT])
   const [addNodeModalVisible, setAddNodeModalVisible] = useState(false)
   const [addNodeForm] = Form.useForm()
+  const [deleteNodeModalVisible, setDeleteNodeModalVisible] = useState(false)
+  const [nodeToDelete, setNodeToDelete] = useState<Task | null>(null)
 
   const loadProjects = async () => {
     const data = await fetchTasksByStatus(TaskStatus.PROJECT)
@@ -129,6 +131,22 @@ export function ProjectList() {
     } catch (err) {
       // 表单验证失败
     }
+  }
+
+  // 确认删除节点
+  const confirmDeleteNode = async () => {
+    if (!nodeToDelete) return
+    const descendants = getAllDescendants(allProjectTasks, nodeToDelete.id!)
+    for (const desc of descendants) {
+      await deleteTask(desc.id!)
+    }
+    await deleteTask(nodeToDelete.id!)
+    message.success('删除节点成功')
+    setDeleteNodeModalVisible(false)
+    setNodeToDelete(null)
+    // 刷新
+    const allTasks = await fetchTasksByStatus(TaskStatus.PROJECT)
+    setAllProjectTasks(allTasks)
   }
 
   // 更新任务标题
@@ -361,11 +379,22 @@ export function ProjectList() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="text-red-500 hover:text-red-600"
-                  onClick={() => handleDeleteProject(selectedProject.id!)}
+                  variant="outline"
+                  className="text-red-500 border-red-300 hover:bg-red-50"
+                  onClick={() => {
+                    // 选择要删除的节点 - 只能删除非根节点的节点
+                    const nonRootNodes = allProjectTasks.filter(t => t.nodeLevel !== NodeLevel.ROOT && t.parentId === selectedProject.id)
+                    if (nonRootNodes.length === 0) {
+                      message.info('当前项目没有可删除的节点')
+                      return
+                    }
+                    // 打开删除对话框，默认选择第一个
+                    setNodeToDelete(nonRootNodes[0])
+                    setDeleteNodeModalVisible(true)
+                  }}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  删除节点
                 </Button>
               </div>
             </div>
@@ -522,6 +551,40 @@ export function ProjectList() {
             </Select>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 删除节点对话框 */}
+      <Modal
+        title="删除节点"
+        open={deleteNodeModalVisible}
+        onOk={confirmDeleteNode}
+        onCancel={() => {
+          setDeleteNodeModalVisible(false)
+          setNodeToDelete(null)
+        }}
+        okText="确定"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+      >
+        <p>确定要删除节点「{nodeToDelete?.title}」吗？</p>
+        <p className="text-red-500 text-sm mt-2">注意：其所有子节点也会被删除</p>
+        <Select
+          className="w-full mt-4"
+          placeholder="选择要删除的节点"
+          value={nodeToDelete?.id}
+          onChange={(value) => {
+            const task = allProjectTasks.find(t => t.id === value)
+            setNodeToDelete(task || null)
+          }}
+        >
+          {allProjectTasks
+            .filter(t => t.nodeLevel !== NodeLevel.ROOT && t.parentId === selectedProject?.id)
+            .map(t => (
+              <Select.Option key={t.id} value={t.id!}>
+                {'  '.repeat(t.nodeLevel!)}↳ {t.title}
+              </Select.Option>
+            ))}
+        </Select>
       </Modal>
     </div>
   )
