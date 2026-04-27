@@ -1,9 +1,31 @@
 # Dependencies
 node_modules/
+pnpm-lock.yaml
+package-lock.json
 
 # Build output
+frontend-react/dist/
 frontend/dist/
 backend/target/
+dist/
+
+# Deploy packages (contain built artifacts)
+deploy-package/
+deploy/
+deploy-*/
+
+# Docker
+docker-compose.yml
+
+# Anchor module (deprecated)
+frontend-react/src/pages/anchor/
+frontend-react/src/store/anchorStore.ts
+frontend-react/src/components/Mindmap*.tsx
+frontend-react/src/components/Mindmap*.css
+
+# Reference files
+SimpleMind-main.zip
+*.zip
 
 # IDE
 .idea/
@@ -22,3 +44,7 @@ logs/
 .env.local
 .env.*.local
 .gstack/
+
+# Claude settings (personal config)
+.claude/settings.json
+CLAUDE.md
