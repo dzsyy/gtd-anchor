@@ -1,12 +1,15 @@
 package com.gtd.service;
 
+import com.gtd.dto.PageResponse;
 import com.gtd.dto.ProcessTaskDTO;
 import com.gtd.dto.TaskDTO;
-import com.gtd.entity.Priority;
 import com.gtd.entity.Task;
 import com.gtd.entity.TaskStatus;
+import com.gtd.exception.TaskNotFoundException;
 import com.gtd.repository.TaskRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,35 +20,45 @@ import java.util.stream.Collectors;
 @Service
 public class TaskService {
 
-    @Autowired
-    private TaskRepository taskRepository;
+    private final TaskRepository taskRepository;
 
-    // 获取所有任务
+    public TaskService(TaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
+    }
+
     public List<TaskDTO> getAllTasks() {
         return taskRepository.findAll().stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    // 按状态获取任务
+    public PageResponse<TaskDTO> getTasksPaginated(int page, int size) {
+        Page<Task> taskPage = taskRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<TaskDTO> dtos = taskPage.getContent().stream().map(this::toDTO).collect(Collectors.toList());
+        return new PageResponse<>(dtos, page, size, taskPage.getTotalElements());
+    }
+
     public List<TaskDTO> getTasksByStatus(TaskStatus status) {
         return taskRepository.findByStatusOrderByCreatedAtDesc(status).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    // 获取任务
+    public PageResponse<TaskDTO> getTasksByStatusPaginated(TaskStatus status, int page, int size) {
+        Page<Task> taskPage = taskRepository.findByStatus(status, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<TaskDTO> dtos = taskPage.getContent().stream().map(this::toDTO).collect(Collectors.toList());
+        return new PageResponse<>(dtos, page, size, taskPage.getTotalElements());
+    }
+
     public TaskDTO getTaskById(Long id) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found: " + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
         return toDTO(task);
     }
 
-    // 创建任务
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO) {
         Task task = toEntity(taskDTO);
-        // 使用传入的状态，如果没有则默认进入收集箱
         if (taskDTO.getStatus() == null) {
             task.setStatus(TaskStatus.INBOX);
         }
@@ -53,108 +66,66 @@ public class TaskService {
         return toDTO(saved);
     }
 
-    // 更新任务
+    @Transactional
+    public List<TaskDTO> batchCreateTasks(List<TaskDTO> taskDTOs) {
+        List<Task> tasks = taskDTOs.stream()
+                .map(dto -> {
+                    Task task = toEntity(dto);
+                    if (dto.getStatus() == null) {
+                        task.setStatus(TaskStatus.INBOX);
+                    }
+                    return task;
+                })
+                .collect(Collectors.toList());
+        List<Task> saved = taskRepository.saveAll(tasks);
+        return saved.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
     @Transactional
     public TaskDTO updateTask(Long id, TaskDTO taskDTO) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found: " + id));
-
-        // 只更新非 null 的字段
-        if (taskDTO.getTitle() != null) {
-            task.setTitle(taskDTO.getTitle());
-        }
-        if (taskDTO.getDescription() != null) {
-            task.setDescription(taskDTO.getDescription());
-        }
-        if (taskDTO.getStatus() != null) {
-            task.setStatus(taskDTO.getStatus());
-        }
-        if (taskDTO.getPriority() != null) {
-            task.setPriority(taskDTO.getPriority());
-        }
-        if (taskDTO.getContextTag() != null) {
-            task.setContextTag(taskDTO.getContextTag());
-        }
-        if (taskDTO.getEstimatedTime() != null) {
-            task.setEstimatedTime(taskDTO.getEstimatedTime());
-        }
-        if (taskDTO.getDueDate() != null) {
-            task.setDueDate(taskDTO.getDueDate());
-        }
-        if (taskDTO.getParentId() != null) {
-            task.setParentId(taskDTO.getParentId());
-        }
-        if (taskDTO.getWaitingFor() != null) {
-            task.setWaitingFor(taskDTO.getWaitingFor());
-        }
-        if (taskDTO.getIsProject() != null) {
-            task.setIsProject(taskDTO.getIsProject());
-        }
-        // 碎碎锚扩展字段
-        if (taskDTO.getNodeLevel() != null) {
-            task.setNodeLevel(taskDTO.getNodeLevel());
-        }
-        if (taskDTO.getIsCompleted() != null) {
-            task.setIsCompleted(taskDTO.getIsCompleted());
-            if (Boolean.TRUE.equals(taskDTO.getIsCompleted())) {
-                task.setCompletedTime(LocalDateTime.now());
-            } else {
-                task.setCompletedTime(null);
-            }
-        }
-        if (taskDTO.getIsSubmitted() != null) {
-            task.setIsSubmitted(taskDTO.getIsSubmitted());
-        }
-
+                .orElseThrow(() -> new TaskNotFoundException(id));
+        updateFields(task, taskDTO);
         Task updated = taskRepository.save(task);
         return toDTO(updated);
     }
 
-    // 删除任务
     @Transactional
     public void deleteTask(Long id) {
+        if (!taskRepository.existsById(id)) {
+            throw new TaskNotFoundException(id);
+        }
         taskRepository.deleteById(id);
     }
 
-    // 移动任务到其他分区
     @Transactional
     public TaskDTO moveTask(Long id, TaskStatus newStatus) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found: " + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
         task.setStatus(newStatus);
         Task updated = taskRepository.save(task);
         return toDTO(updated);
     }
 
-    // GTD 决策流程处理
     @Transactional
     public TaskDTO processTask(ProcessTaskDTO processDTO) {
         Task task = taskRepository.findById(processDTO.getTaskId())
-                .orElseThrow(() -> new RuntimeException("Task not found: " + processDTO.getTaskId()));
+                .orElseThrow(() -> new TaskNotFoundException(processDTO.getTaskId()));
 
-        // 决策流程
         if (Boolean.FALSE.equals(processDTO.getActionable())) {
-            // 不可行动 -> 参考资料/可能清单/回收箱
-            // 暂时放入 someday，后续可选择转换为 reference 或 trash
             task.setStatus(TaskStatus.SOMEDAY);
         } else {
-            // 可行动
             if (Boolean.TRUE.equals(processDTO.getTwoMinutes())) {
-                // 2分钟内能完成 -> 立即执行（标记为完成）
                 task.setStatus(TaskStatus.DONE);
             } else if (Boolean.TRUE.equals(processDTO.getIsProject())) {
-                // 需要多步骤 -> 项目清单
                 task.setStatus(TaskStatus.PROJECT);
                 task.setIsProject(true);
-            } else if (processDTO.getHasSpecificTime() != null && processDTO.getHasSpecificTime()) {
-                // 有特定时间 -> 保持 inbox，稍后进入日历
+            } else if (Boolean.TRUE.equals(processDTO.getHasSpecificTime())) {
                 task.setDueDate(processDTO.getDueDate());
             } else if (Boolean.FALSE.equals(processDTO.getIsMyTask())) {
-                // 不该我做 -> 等待清单
                 task.setStatus(TaskStatus.WAITING);
                 task.setWaitingFor(processDTO.getWaitingFor());
             } else {
-                // 进入执行清单
                 task.setStatus(TaskStatus.CONTEXT);
                 task.setContextTag(processDTO.getContextTag());
             }
@@ -164,52 +135,45 @@ public class TaskService {
         return toDTO(updated);
     }
 
-    // 获取项目子任务
     public List<TaskDTO> getSubTasks(Long parentId) {
         return taskRepository.findByParentId(parentId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    // 批量更新任务
     @Transactional
     public List<TaskDTO> batchUpdateTasks(List<TaskDTO> tasks) {
-        List<Task> updatedTasks = new java.util.ArrayList<>();
-        for (TaskDTO taskDTO : tasks) {
-            if (taskDTO.getId() != null) {
-                Task task = taskRepository.findById(taskDTO.getId())
-                        .orElseThrow(() -> new RuntimeException("Task not found: " + taskDTO.getId()));
-
-                if (taskDTO.getTitle() != null) task.setTitle(taskDTO.getTitle());
-                if (taskDTO.getDescription() != null) task.setDescription(taskDTO.getDescription());
-                if (taskDTO.getStatus() != null) task.setStatus(taskDTO.getStatus());
-                if (taskDTO.getPriority() != null) task.setPriority(taskDTO.getPriority());
-                if (taskDTO.getContextTag() != null) task.setContextTag(taskDTO.getContextTag());
-                if (taskDTO.getEstimatedTime() != null) task.setEstimatedTime(taskDTO.getEstimatedTime());
-                if (taskDTO.getDueDate() != null) task.setDueDate(taskDTO.getDueDate());
-                if (taskDTO.getParentId() != null) task.setParentId(taskDTO.getParentId());
-                if (taskDTO.getWaitingFor() != null) task.setWaitingFor(taskDTO.getWaitingFor());
-                if (taskDTO.getIsProject() != null) task.setIsProject(taskDTO.getIsProject());
-                if (taskDTO.getNodeLevel() != null) task.setNodeLevel(taskDTO.getNodeLevel());
-                if (taskDTO.getIsCompleted() != null) {
-                    task.setIsCompleted(taskDTO.getIsCompleted());
-                    if (Boolean.TRUE.equals(taskDTO.getIsCompleted())) {
-                        task.setCompletedTime(LocalDateTime.now());
-                    } else {
-                        task.setCompletedTime(null);
-                    }
-                }
-                if (taskDTO.getIsSubmitted() != null) {
-                    task.setIsSubmitted(taskDTO.getIsSubmitted());
-                }
-
-                updatedTasks.add(taskRepository.save(task));
-            }
-        }
-        return updatedTasks.stream().map(this::toDTO).collect(Collectors.toList());
+        List<Task> updatedTasks = tasks.stream()
+                .filter(dto -> dto.getId() != null)
+                .map(dto -> {
+                    Task task = taskRepository.findById(dto.getId())
+                            .orElseThrow(() -> new TaskNotFoundException(dto.getId()));
+                    updateFields(task, dto);
+                    return task;
+                })
+                .collect(Collectors.toList());
+        return taskRepository.saveAll(updatedTasks).stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    // 转换为 DTO
+    private void updateFields(Task task, TaskDTO dto) {
+        if (dto.getTitle() != null) task.setTitle(dto.getTitle());
+        if (dto.getDescription() != null) task.setDescription(dto.getDescription());
+        if (dto.getStatus() != null) task.setStatus(dto.getStatus());
+        if (dto.getPriority() != null) task.setPriority(dto.getPriority());
+        if (dto.getContextTag() != null) task.setContextTag(dto.getContextTag());
+        if (dto.getEstimatedTime() != null) task.setEstimatedTime(dto.getEstimatedTime());
+        if (dto.getDueDate() != null) task.setDueDate(dto.getDueDate());
+        if (dto.getParentId() != null) task.setParentId(dto.getParentId());
+        if (dto.getWaitingFor() != null) task.setWaitingFor(dto.getWaitingFor());
+        if (dto.getIsProject() != null) task.setIsProject(dto.getIsProject());
+        if (dto.getNodeLevel() != null) task.setNodeLevel(dto.getNodeLevel());
+        if (dto.getIsCompleted() != null) {
+            task.setIsCompleted(dto.getIsCompleted());
+            task.setCompletedTime(Boolean.TRUE.equals(dto.getIsCompleted()) ? LocalDateTime.now() : null);
+        }
+        if (dto.getIsSubmitted() != null) task.setIsSubmitted(dto.getIsSubmitted());
+    }
+
     private TaskDTO toDTO(Task task) {
         TaskDTO dto = new TaskDTO();
         dto.setId(task.getId());
@@ -223,7 +187,6 @@ public class TaskService {
         dto.setParentId(task.getParentId());
         dto.setWaitingFor(task.getWaitingFor());
         dto.setIsProject(task.getIsProject());
-        // 碎碎锚扩展字段
         dto.setNodeLevel(task.getNodeLevel());
         dto.setIsCompleted(task.getIsCompleted());
         dto.setIsSubmitted(task.getIsSubmitted());
@@ -233,7 +196,6 @@ public class TaskService {
         return dto;
     }
 
-    // 转换为 Entity
     private Task toEntity(TaskDTO dto) {
         Task task = new Task();
         task.setTitle(dto.getTitle());
@@ -246,7 +208,6 @@ public class TaskService {
         task.setParentId(dto.getParentId());
         task.setWaitingFor(dto.getWaitingFor());
         task.setIsProject(dto.getIsProject());
-        // 碎碎锚扩展字段
         task.setNodeLevel(dto.getNodeLevel());
         task.setIsCompleted(dto.getIsCompleted());
         return task;

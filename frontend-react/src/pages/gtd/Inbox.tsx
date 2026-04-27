@@ -1,162 +1,79 @@
 import { useState, useEffect } from 'react'
-import { Plus, MoreVertical, Trash2, ArrowRight, Clock, Check } from 'lucide-react'
+import { Plus, List } from 'lucide-react'
 import { useTaskStore } from '@/store/taskStore'
 import { TaskStatus, NodeLevel, type Task } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { InboxList } from './InboxList'
+import { ProcessDialog } from './ProcessDialog'
+import { BatchImportDialog } from './BatchImportDialog'
 
 export function Inbox() {
-  const { fetchTasksByStatus, createTask, updateTask, deleteTask } = useTaskStore()
-  const [inboxTasks, setInboxTasks] = useState<Task[]>([])
+  const { tasksByStatus, fetchTasksByStatus, createTask, createTasks, updateTask, deleteTask, loading } = useTaskStore()
   const [newTitle, setNewTitle] = useState('')
-  const [processDialog, setProcessDialog] = useState(false)
+  const [processDialogOpen, setProcessDialogOpen] = useState(false)
+  const [batchImportOpen, setBatchImportOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [step, setStep] = useState(1)
-  const [waitingFor, setWaitingFor] = useState('')
+
+  const inboxTasks = tasksByStatus[TaskStatus.INBOX] || []
 
   useEffect(() => {
-    loadTasks()
-  }, [])
-
-  const loadTasks = async () => {
-    const data = await fetchTasksByStatus(TaskStatus.INBOX)
-    setInboxTasks(data)
-  }
+    fetchTasksByStatus(TaskStatus.INBOX)
+  }, [fetchTasksByStatus])
 
   const handleAdd = async () => {
     if (!newTitle.trim()) return
     await createTask({ title: newTitle.trim(), status: TaskStatus.INBOX })
     setNewTitle('')
-    loadTasks()
+    fetchTasksByStatus(TaskStatus.INBOX)
+  }
+
+  const handleBatchImport = async (text: string) => {
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+    if (lines.length === 0) return
+    const tasks = lines.map(title => ({ title, status: TaskStatus.INBOX }))
+    await createTasks(tasks)
+    fetchTasksByStatus(TaskStatus.INBOX)
   }
 
   const startProcess = (task: Task) => {
     setSelectedTask(task)
-    setStep(1)
-    setWaitingFor('')
-    setProcessDialog(true)
+    setProcessDialogOpen(true)
   }
 
-  const executeAction = async (status: string, isProject = false) => {
+  const handleProcessAction = async (status: string, isProject = false) => {
     if (!selectedTask?.id || !selectedTask.title) return
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Partial<Task> = {
       title: selectedTask.title,
     }
-    // 立即执行 -> 归档
+
     if (status === TaskStatus.DONE) {
-      updateData.status = TaskStatus.ARCHIVED
+      updateData.status = TaskStatus.ARCHIVED as unknown as string
       updateData.isCompleted = true
-      updateData.completedTime = new Date().toISOString()
+      updateData.completedTime = new Date().toISOString() as unknown as string
     } else {
       updateData.status = status
     }
+
     if (isProject) {
       updateData.isProject = true
       updateData.nodeLevel = NodeLevel.ROOT
     }
-    // 进入执行清单的任务需要设置 isSubmitted=true
+
     if (status === TaskStatus.PROJECT) {
       updateData.isSubmitted = true
     }
-    if (waitingFor) updateData.waitingFor = waitingFor
 
     await updateTask(selectedTask.id, updateData)
-
-    setProcessDialog(false)
-    setSelectedTask(null)
-    loadTasks()
+    fetchTasksByStatus(TaskStatus.INBOX)
   }
 
   const handleDelete = async (id: number) => {
     await deleteTask(id)
-    loadTasks()
-  }
-
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">这件事情可行动吗？</div>
-            <div className="flex gap-2">
-              <Button onClick={() => setStep(2)} className="flex-1">是 <ArrowRight className="ml-2 h-4 w-4" /></Button>
-              <Button variant="outline" onClick={() => setStep(5)} className="flex-1">否</Button>
-            </div>
-          </div>
-        )
-      case 2:
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">可以一步搞定吗？</div>
-            <div className="flex gap-2">
-              <Button onClick={() => setStep(3)} className="flex-1">是 <ArrowRight className="ml-2 h-4 w-4" /></Button>
-              <Button variant="outline" onClick={() => executeAction(TaskStatus.PROJECT, true)} className="flex-1">否 → 项目</Button>
-            </div>
-          </div>
-        )
-      case 3:
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">2分钟内能搞定吗？</div>
-            <div className="flex gap-2">
-              <Button onClick={() => executeAction(TaskStatus.DONE)} className="flex-1 bg-green-500 hover:bg-green-600">
-                <Check className="mr-2 h-4 w-4" />立即执行
-              </Button>
-              <Button variant="outline" onClick={() => setStep(4)} className="flex-1">否 <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </div>
-          </div>
-        )
-      case 4:
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">该我做吗？等别人？</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => executeAction(TaskStatus.PROJECT)} className="flex-1">该我做 → 执行</Button>
-              <Button variant="outline" onClick={() => setStep(6)} className="flex-1"><Clock className="mr-2 h-4 w-4" />等待</Button>
-            </div>
-          </div>
-        )
-      case 5: // 否 - 不可行动
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">那是什么？</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => executeAction(TaskStatus.SOMEDAY)}>可能清单</Button>
-              <Button variant="secondary" onClick={() => executeAction(TaskStatus.TRASH)}>回收箱</Button>
-            </div>
-          </div>
-        )
-      case 6: // 等待
-        return (
-          <div className="space-y-4">
-            <div className="text-lg font-medium text-center py-4">等待谁？</div>
-            <Input
-              placeholder="输入等待对象..."
-              value={waitingFor}
-              onChange={(e) => setWaitingFor(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && executeAction(TaskStatus.WAITING)}
-            />
-            <Button onClick={() => executeAction(TaskStatus.WAITING)} className="w-full">确认等待</Button>
-          </div>
-        )
-      default:
-        return null
-    }
+    fetchTasksByStatus(TaskStatus.INBOX)
   }
 
   return (
@@ -169,54 +86,48 @@ export function Inbox() {
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder="添加新任务..."
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
           className="flex-1"
         />
-        <Button onClick={handleAdd}>
-          <Plus className="h-4 w-4 mr-1" />添加
+        <Button onClick={handleAdd} disabled={loading}>
+          <Plus className="h-4 w-4 mr-1" />
+          添加
+        </Button>
+        <Button variant="outline" onClick={() => setBatchImportOpen(true)}>
+          <List className="h-4 w-4 mr-1" />
+          批量导入
         </Button>
       </div>
 
       <Card>
-        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)] md:h-[calc(100vh-280px)]">
+        <ScrollArea className="h-[calc(100vh-140px)] md:h-[calc(100vh-200px)]">
           <CardContent className="p-4">
-            {inboxTasks.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">收集箱是空的，添加一些任务吧</div>
-            ) : (
-              <div className="space-y-2">
-                {inboxTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group">
-                    <span className="flex-1">{task.title}</span>
-                    <Button size="sm" variant="outline" onClick={() => startProcess(task)} className="opacity-0 group-hover:opacity-100">处理</Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-red-500" onClick={() => task.id && handleDelete(task.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" />删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ))}
-              </div>
-            )}
+            <InboxList
+              tasks={inboxTasks}
+              onProcess={startProcess}
+              onDelete={handleDelete}
+            />
           </CardContent>
         </ScrollArea>
       </Card>
 
-      <Dialog open={processDialog} onOpenChange={setProcessDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>处理任务</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="text-sm text-gray-600 mb-4 p-3 bg-gray-50 rounded">{selectedTask?.title}</div>
-            {renderStep()}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ProcessDialog
+        task={selectedTask}
+        open={processDialogOpen}
+        onOpenChange={setProcessDialogOpen}
+        onAction={handleProcessAction}
+      />
+
+      <BatchImportDialog
+        open={batchImportOpen}
+        onOpenChange={setBatchImportOpen}
+        onImport={handleBatchImport}
+      />
     </div>
   )
 }

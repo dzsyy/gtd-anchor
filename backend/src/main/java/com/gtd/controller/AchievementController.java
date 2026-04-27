@@ -2,7 +2,6 @@ package com.gtd.controller;
 
 import com.gtd.entity.Achievement;
 import com.gtd.service.AchievementService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,11 +10,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/achievement")
-@CrossOrigin(origins = "*")
 public class AchievementController {
 
-    @Autowired
-    private AchievementService achievementService;
+    private final AchievementService achievementService;
+
+    public AchievementController(AchievementService achievementService) {
+        this.achievementService = achievementService;
+    }
 
     @GetMapping("/list")
     public ResponseEntity<List<Achievement>> list(@RequestParam(required = false) String tag) {

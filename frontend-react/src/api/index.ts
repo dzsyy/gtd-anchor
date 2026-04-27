@@ -8,9 +8,18 @@ const api = axios.create({
 
 // Task APIs
 export const taskApi = {
-  getAll: () => api.get<Task[]>('/tasks'),
-  getByStatus: (status: string) => api.get<Task[]>(`/tasks/status/${status}`),
+  getAll: (page?: number, size?: number) => {
+    const params = page !== undefined ? { page, size } : {}
+    return api.get<Task[]>('/tasks', { params })
+  },
+  getByStatus: (status: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    return api.get<Task[]>(`/tasks/status/${status}`, { params })
+  },
   create: (task: Partial<Task>) => api.post<Task>('/tasks', task),
+  batchCreate: (tasks: Partial<Task>[]) => api.post<Task[]>('/tasks/batch-create', tasks),
   update: (id: number, task: Partial<Task>) => api.put<Task>(`/tasks/${id}`, task),
   delete: (id: number) => api.delete(`/tasks/${id}`),
   process: (data: { id: number; targetStatus: string; nextAction?: boolean; contextId?: number }) =>

@@ -5,18 +5,8 @@ import { ProjectList } from '@/pages/gtd/ProjectList'
 import { NextActions } from '@/pages/gtd/NextActions'
 import { WaitingList } from '@/pages/gtd/WaitingList'
 import { SomedayList } from '@/pages/gtd/SomedayList'
-import { Reference } from '@/pages/gtd/Reference'
 import { Trash } from '@/pages/gtd/Trash'
 import { Archive } from '@/pages/gtd/Archive'
-import { Pomodoro } from '@/pages/gtd/Pomodoro'
-import { MindMap } from '@/pages/gtd/MindMap'
-import { Home } from '@/pages/anchor/Home'
-import { InspirationBox } from '@/pages/anchor/InspirationBox'
-import { AchievementBox } from '@/pages/anchor/AchievementBox'
-import { SkillPuzzle } from '@/pages/anchor/SkillPuzzle'
-import { EmotionCave } from '@/pages/anchor/EmotionCave'
-import { MaterialLib } from '@/pages/anchor/MaterialLib'
-import { BedtimeLamp } from '@/pages/anchor/BedtimeLamp'
 
 const router = createBrowserRouter([
   {
@@ -29,18 +19,8 @@ const router = createBrowserRouter([
       { path: 'next-actions', element: <NextActions /> },
       { path: 'waiting', element: <WaitingList /> },
       { path: 'someday', element: <SomedayList /> },
-      { path: 'reference', element: <Reference /> },
       { path: 'trash', element: <Trash /> },
       { path: 'archive', element: <Archive /> },
-      { path: 'pomodoro', element: <Pomodoro /> },
-      { path: 'mindmap', element: <MindMap /> },
-      { path: 'anchor', element: <Home /> },
-      { path: 'inspirations', element: <InspirationBox /> },
-      { path: 'achievements', element: <AchievementBox /> },
-      { path: 'skills', element: <SkillPuzzle /> },
-      { path: 'emotion', element: <EmotionCave /> },
-      { path: 'materials', element: <MaterialLib /> },
-      { path: 'bedtime', element: <BedtimeLamp /> },
     ],
   },
 ])

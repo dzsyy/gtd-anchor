@@ -2,7 +2,6 @@ package com.gtd.controller;
 
 import com.gtd.entity.Material;
 import com.gtd.service.MaterialService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,11 +9,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/material")
-@CrossOrigin(origins = "*")
 public class MaterialController {
 
-    @Autowired
-    private MaterialService materialService;
+    private final MaterialService materialService;
+
+    public MaterialController(MaterialService materialService) {
+        this.materialService = materialService;
+    }
 
     @GetMapping("/list")
     public ResponseEntity<List<Material>> list() {

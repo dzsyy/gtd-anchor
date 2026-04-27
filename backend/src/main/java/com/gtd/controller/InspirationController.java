@@ -2,7 +2,6 @@ package com.gtd.controller;
 
 import com.gtd.entity.Inspiration;
 import com.gtd.service.InspirationService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,11 +9,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/inspiration")
-@CrossOrigin(origins = "*")
 public class InspirationController {
 
-    @Autowired
-    private InspirationService inspirationService;
+    private final InspirationService inspirationService;
+
+    public InspirationController(InspirationService inspirationService) {
+        this.inspirationService = inspirationService;
+    }
 
     @GetMapping("/list")
     public ResponseEntity<List<Inspiration>> list(@RequestParam(required = false) String tag) {

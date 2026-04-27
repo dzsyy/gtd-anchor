@@ -2,7 +2,6 @@ package com.gtd.controller;
 
 import com.gtd.entity.SkillParticle;
 import com.gtd.service.SkillParticleService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,11 +9,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/skill-particle")
-@CrossOrigin(origins = "*")
 public class SkillParticleController {
 
-    @Autowired
-    private SkillParticleService skillParticleService;
+    private final SkillParticleService skillParticleService;
+
+    public SkillParticleController(SkillParticleService skillParticleService) {
+        this.skillParticleService = skillParticleService;
+    }
 
     @GetMapping("/list")
     public ResponseEntity<List<SkillParticle>> list(@RequestParam(required = false) String skillDomain) {
